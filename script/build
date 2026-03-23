@@ -1,0 +1,34 @@
+#!/bin/bash
+set -e
+
+# Ensure we're in the root of the project
+cd "$(dirname "$0")/.."
+
+# Calculate build metadata
+count=$(git rev-list --count HEAD 2>/dev/null || echo "0")
+arch=$(go env GOARCH 2>/dev/null || echo "unknown")
+dirty=$(git status --porcelain 2>/dev/null)
+
+# Increment count if dirty
+if [ -n "$dirty" ]; then
+    count=$((count + 1))
+fi
+
+# Determine version string
+version="b${count}-${arch}"
+if [ -n "$dirty" ]; then
+    version="${version}-dev"
+fi
+
+echo "Building version: ${version}"
+
+mkdir -p bin
+
+# Build all binaries
+for cmd in cmd/plan-cli cmd/plan-tui; do
+    name=$(basename "$cmd")
+    echo "Building ${name}..."
+    go build -ldflags "-X planner/pkg/version.Version=${version}" -o "bin/${name}" "./$cmd"
+done
+
+echo "Build complete. Binaries are in the bin/ directory."

@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: ./script/build
+
+      - name: Test
+        run: ./script/test

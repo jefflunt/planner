@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+# Ensure we're in the root of the project
+cd "$(dirname "$0")/.."
+
+echo "Running tests..."
+# Run all tests
+go test -v ./...
