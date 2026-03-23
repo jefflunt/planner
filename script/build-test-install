@@ -1,0 +1,19 @@
+#!/bin/bash
+set -e
+
+# Ensure we're in the root of the project
+cd "$(dirname "$0")/.."
+
+echo "==> Running script/build..."
+./script/build
+
+echo ""
+echo "==> Running script/test..."
+./script/test
+
+echo ""
+echo "==> Running script/install..."
+./script/install
+
+echo ""
+echo "==> All steps completed successfully!"
