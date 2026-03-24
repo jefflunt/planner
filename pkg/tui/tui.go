@@ -623,6 +623,7 @@ func (m model) View() string {
 		return "Initializing plan..."
 	}
 
+	var tasksBuilder strings.Builder
 	for i, n := range m.nodes {
 		cursor := "  "
 		if m.cursorIndex == i {
@@ -666,46 +667,58 @@ func (m model) View() string {
 		renderedLine := lineWrapStyle.Render(line)
 
 		if m.cursorIndex == i {
-			b.WriteString(selectedStyle.Render(renderedLine) + "\n")
+			tasksBuilder.WriteString(selectedStyle.Render(renderedLine) + "\n")
 		} else {
-			b.WriteString(renderedLine + "\n")
+			tasksBuilder.WriteString(renderedLine + "\n")
 		}
 	}
+	tasksList := tasksBuilder.String()
 
-	// Render prompt if active
+	// Build prompt/edit UI if active
+	var promptBuilder strings.Builder
+	hasPrompt := false
 	if m.currentPrompt != nil {
-		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Clarification Needed: "))
-		b.WriteString("\n")
-		b.WriteString(wrapStyle.Render(m.currentPrompt.Question))
-		b.WriteString("\n\n")
-		b.WriteString(m.textInput.View())
-		b.WriteString("\n\n(Press Enter to submit)")
+		promptBuilder.WriteString(strings.Repeat("─", termWidth/2) + "\n")
+		promptBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Clarification Needed: "))
+		promptBuilder.WriteString("\n")
+		promptBuilder.WriteString(wrapStyle.Render(m.currentPrompt.Question))
+		promptBuilder.WriteString("\n\n")
+		promptBuilder.WriteString(m.textInput.View())
+		promptBuilder.WriteString("\n\n(Press Enter to submit)\n\n")
+		hasPrompt = true
 	} else if m.editingNode != nil {
-		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Editing Task: "))
-		b.WriteString("\n\n")
-		b.WriteString(m.textInput.View())
-		b.WriteString("\n\n(Press Enter to save and re-plan | Esc to cancel)")
+		promptBuilder.WriteString(strings.Repeat("─", termWidth/2) + "\n")
+		promptBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Editing Task: "))
+		promptBuilder.WriteString("\n\n")
+		promptBuilder.WriteString(m.textInput.View())
+		promptBuilder.WriteString("\n\n(Press Enter to save and re-plan | Esc to cancel)\n\n")
+		hasPrompt = true
 	} else if m.addingChildTo != nil {
-		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Add Child Task: "))
-		b.WriteString("\n\n")
-		b.WriteString(m.textInput.View())
-		b.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)")
+		promptBuilder.WriteString(strings.Repeat("─", termWidth/2) + "\n")
+		promptBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Add Child Task: "))
+		promptBuilder.WriteString("\n\n")
+		promptBuilder.WriteString(m.textInput.View())
+		promptBuilder.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)\n\n")
+		hasPrompt = true
 	} else if m.addingSiblingTo != nil {
-		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
+		promptBuilder.WriteString(strings.Repeat("─", termWidth/2) + "\n")
 		var mode string
 		if m.addingSiblingBefore {
 			mode = "Before"
 		} else {
 			mode = "After"
 		}
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render(fmt.Sprintf("Add Sibling Task (%s): ", mode)))
-		b.WriteString("\n\n")
-		b.WriteString(m.textInput.View())
-		b.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)")
+		promptBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render(fmt.Sprintf("Add Sibling Task (%s): ", mode)))
+		promptBuilder.WriteString("\n\n")
+		promptBuilder.WriteString(m.textInput.View())
+		promptBuilder.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)\n\n")
+		hasPrompt = true
 	}
+
+	if hasPrompt {
+		b.WriteString(promptBuilder.String())
+	}
+	b.WriteString(tasksList)
 
 	mainContent := b.String()
 
