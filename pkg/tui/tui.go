@@ -88,10 +88,14 @@ func StartTUI(task string, stateFile string, workspace string, client planner.LL
 	if task != "" {
 		if !loaded || p.Root.Task != task {
 			go p.Start(ctx, task)
+		} else {
+			go p.Plan(ctx, p.Root)
 		}
 	} else {
 		if !loaded {
 			askingForTask = true
+		} else {
+			go p.Plan(ctx, p.Root)
 		}
 	}
 

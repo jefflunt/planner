@@ -301,6 +301,11 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 	}
 
 	for {
+		p.mu.Lock()
+		node.Status = StatusPending
+		p.mu.Unlock()
+		p.Save()
+
 		ancestry := p.GetAncestry(node)
 
 		req := LLMRequest{
