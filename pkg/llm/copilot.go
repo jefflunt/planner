@@ -13,7 +13,8 @@ import (
 )
 
 type CopilotClient struct {
-	model string
+	model  string
+	runner func(ctx context.Context, name string, args ...string) ([]byte, []byte, error)
 }
 
 func NewCopilotClient(ctx context.Context, cfg *config.Config) (*CopilotClient, error) {
@@ -27,6 +28,15 @@ func NewCopilotClient(ctx context.Context, cfg *config.Config) (*CopilotClient, 
 
 	return &CopilotClient{
 		model: model,
+		runner: func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+			cmd := exec.CommandContext(ctx, name, args...)
+			var out bytes.Buffer
+			var stderr bytes.Buffer
+			cmd.Stdout = &out
+			cmd.Stderr = &stderr
+			err := cmd.Run()
+			return out.Bytes(), stderr.Bytes(), err
+		},
 	}, nil
 }
 
@@ -36,18 +46,12 @@ func (c *CopilotClient) executePrompt(ctx context.Context, prompt string) (strin
 		args = append(args, "--model", c.model)
 	}
 
-	cmd := exec.CommandContext(ctx, "copilot", args...)
-
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("copilot cli failed: %w\nstderr: %s", err, stderr.String())
+	out, stderr, err := c.runner(ctx, "copilot", args...)
+	if err != nil {
+		return "", fmt.Errorf("copilot cli failed: %w\nstderr: %s", err, string(stderr))
 	}
 
-	output := strings.TrimSpace(out.String())
+	output := strings.TrimSpace(string(out))
 
 	// Extract JSON block if copilot included other text
 	output = extractJSON(output)

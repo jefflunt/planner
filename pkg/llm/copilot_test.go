@@ -17,11 +17,14 @@ func TestCopilotClient_AnalyzeTask(t *testing.T) {
 
 	cfg := &config.Config{}
 	cfg.LLM.Provider = "copilot"
-	// Don't set model so it uses the default
 
 	client, err := NewCopilotClient(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("expected no error creating client, got: %v", err)
+	}
+
+	client.runner = func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		return []byte(`{"action": "actionable", "reasoning": "mock"}`), nil, nil
 	}
 
 	req := planner.LLMRequest{
@@ -33,14 +36,13 @@ func TestCopilotClient_AnalyzeTask(t *testing.T) {
 		t.Fatalf("AnalyzeTask failed: %v", err)
 	}
 
-	// For a single file script, it should either be actionable or decompose.
-	// As long as it parsed successfully and returned an action, it's working.
-	if resp.Action == "" {
-		t.Fatalf("expected an action, got empty")
+	if resp.Action != "actionable" {
+		t.Fatalf("expected actionable, got %v", resp.Action)
 	}
 }
 
 func TestCopilotClient_GeneratePlanName(t *testing.T) {
+	// Skip the test if the copilot CLI is not installed
 	if _, err := exec.LookPath("copilot"); err != nil {
 		t.Skip("copilot CLI not found in PATH; skipping test")
 	}
@@ -53,12 +55,16 @@ func TestCopilotClient_GeneratePlanName(t *testing.T) {
 		t.Fatalf("expected no error creating client, got: %v", err)
 	}
 
+	client.runner = func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
+		return []byte(`{"filename": "add-user-login-feature"}`), nil, nil
+	}
+
 	name, err := client.GeneratePlanName(context.Background(), "Add user login feature")
 	if err != nil {
 		t.Fatalf("GeneratePlanName failed: %v", err)
 	}
 
-	if name == "" {
-		t.Fatalf("expected a plan name, got empty")
+	if name != "add-user-login-feature" {
+		t.Fatalf("expected add-user-login-feature, got %v", name)
 	}
 }
