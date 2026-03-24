@@ -6,13 +6,11 @@ This project was inspired by the design of [TinyAGI/fractals](https://github.com
 
 ## Quick Start
 
-You can build the two available binaries (a rich TUI or a standard CLI) using the included build script:
+You can build the `plan-tui` binary using the included build script:
 
 ```bash
 ./script/build
 ```
-
-### Using the TUI
 
 Launch the interactive Bubble Tea terminal UI to watch the tree build and answer LLM clarification questions in real-time:
 
@@ -20,18 +18,10 @@ Launch the interactive Bubble Tea terminal UI to watch the tree build and answer
 ./bin/plan-tui "Build a web scraper"
 ```
 
-### Using the CLI
-
-Run the standard CLI (useful for embedding or logging):
+Or pass a larger prompt via STDIN:
 
 ```bash
-./bin/plan-cli plan "Build a web scraper"
-```
-
-List the current state of the plan:
-
-```bash
-./bin/plan-cli list
+cat prompt.txt | ./bin/plan-tui
 ```
 
 ---
@@ -59,10 +49,10 @@ This folder follows **Progressive Disclosure** principles — show what exists a
 planner/
 ├── bin/                       ← Compiled output directory
 ├── cmd/
-│   ├── plan-cli/              ← Non-interactive/promptable CLI executable
 │   └── plan-tui/              ← Interactive Terminal UI executable
 ├── pkg/
-│   ├── llm/                   ← Abstract LLM interfaces & Mock client
+│   ├── config/                ← YAML Configuration parsing
+│   ├── llm/                   ← Gemini LLM Client
 │   ├── planner/               ← Core orchestrator logic (tree, node, loop)
 │   ├── version/               ← Binary version definitions
 │   └── tui/                   ← Bubble Tea UI components
@@ -81,5 +71,5 @@ planner/
 - **Actionable Heuristic:** A leaf node is *only* actionable if it describes the creation, deletion, or editing of a single file on disk. The LLM must enforce this.
 - **No Max Depth:** The planner does not rely on arbitrary depth limits. It continues to decompose infinitely until the LLM returns `Actionable` for all branches.
 - **Yielding to User:** If a task is unclear, the LLM returns `AskUser`. The planner halts execution for that branch, bubbles a prompt up to the UI (via Go channels), waits for user input, appends the answer to the task's context, and retries.
-- **Two Binaries:** The logic is encapsulated in `pkg/planner`, allowing it to be driven by both a standard CLI (`plan-cli`) and a rich interactive Bubble Tea interface (`plan-tui`).
+- **Interface:** The logic is encapsulated in `pkg/planner`, driven by a rich interactive Bubble Tea interface (`plan-tui`).
 - **Persistence:** The entire task tree is saved as a structured JSON file after every state mutation, allowing planning sessions to be resumed seamlessly.

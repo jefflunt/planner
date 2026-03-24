@@ -24,7 +24,7 @@ func NewClient(ctx context.Context, cfg *config.Config) (planner.LLMClient, erro
 // MockClient is included for fallback and testing
 type MockClient struct{}
 
-func (m *MockClient) AnalyzeTask(ctx context.Context, task string) (planner.LLMResponse, error) {
+func (m *MockClient) AnalyzeTask(ctx context.Context, task string, isVision bool) (planner.LLMResponse, error) {
 	return planner.LLMResponse{
 		Action: planner.ActionActionable,
 	}, nil

@@ -44,11 +44,16 @@ func NewGeminiClient(ctx context.Context, cfg *config.Config) (*GeminiClient, er
 	}, nil
 }
 
-func (g *GeminiClient) AnalyzeTask(ctx context.Context, task string) (planner.LLMResponse, error) {
+func (g *GeminiClient) AnalyzeTask(ctx context.Context, task string, isVision bool) (planner.LLMResponse, error) {
 	model := g.client.GenerativeModel(g.model)
 
 	// Force JSON output
 	model.ResponseMIMEType = "application/json"
+
+	visionRule := ""
+	if isVision {
+		visionRule = "\n\nCRITICAL: This task is the 'Vision' or 'Root' description of the project. It MUST be decomposed into smaller actionable steps, even if it seems simple. NEVER mark a root vision as 'actionable'."
+	}
 
 	prompt := fmt.Sprintf(`You are an expert agentic task orchestrator. Your job is to analyze a task and decide whether it is actionable, requires decomposition, or needs clarification from the user.
 
@@ -57,7 +62,7 @@ A task is ONLY "actionable" if it describes the creation, deletion, or editing o
 - Example: "Refactor the authentication module" -> Not Actionable (Too vague, multiple files).
 - Example: "Rename AuthUser to SessionUser in src/auth/models.go" -> Actionable (Single file operation).
 
-If a task is too large or modifies multiple files (e.g. "Rename type X and all references"), you MUST decompose it into multiple actionable steps.
+If a task is too large or modifies multiple files (e.g. "Rename type X and all references"), you MUST decompose it into multiple actionable steps.%s
 
 Analyze this task:
 """
@@ -76,7 +81,7 @@ JSON Format:
   "reasoning": "...",
   "subtasks": [...],
   "question": "..."
-}`, task)
+}`, visionRule, task)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {

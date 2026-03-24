@@ -14,7 +14,7 @@ type simpleMockClient struct {
 	responses map[string]LLMResponse
 }
 
-func (m *simpleMockClient) AnalyzeTask(ctx context.Context, task string) (LLMResponse, error) {
+func (m *simpleMockClient) AnalyzeTask(ctx context.Context, task string, isVision bool) (LLMResponse, error) {
 	if resp, ok := m.responses[task]; ok {
 		return resp, nil
 	}

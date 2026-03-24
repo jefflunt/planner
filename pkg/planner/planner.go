@@ -97,9 +97,28 @@ func (p *Planner) Start(ctx context.Context, task string) error {
 
 // Plan recursively decomposes a node, polling the LLM and user until Actionable
 func (p *Planner) Plan(ctx context.Context, node *Node) error {
+	p.mu.RLock()
+	status := node.Status
+	children := node.Children
+	isRoot := p.Root != nil && node.ID == p.Root.ID
+	p.mu.RUnlock()
+
+	// If already fully analyzed, just skip or recurse
+	if status == StatusActionable {
+		return nil
+	}
+	if status == StatusComposite {
+		for _, child := range children {
+			if err := p.Plan(ctx, child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	for {
 		// Ask LLM what to do
-		resp, err := p.LLM.AnalyzeTask(ctx, node.Task)
+		resp, err := p.LLM.AnalyzeTask(ctx, node.Task, isRoot)
 		if err != nil {
 			p.mu.Lock()
 			node.Status = StatusError
@@ -135,7 +154,10 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			p.Save()
 
 			// Recursively plan children
-			for _, child := range node.Children {
+			p.mu.RLock()
+			currentChildren := node.Children
+			p.mu.RUnlock()
+			for _, child := range currentChildren {
 				if err := p.Plan(ctx, child); err != nil {
 					return err
 				}

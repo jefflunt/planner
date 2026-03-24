@@ -56,7 +56,8 @@ type LLMResponse struct {
 type LLMClient interface {
 	// AnalyzeTask evaluates a task to determine if it's actionable (single file operation),
 	// if it needs decomposition, or if it requires user clarification.
-	AnalyzeTask(ctx context.Context, task string) (LLMResponse, error)
+	// If isVision is true, the LLM will treat the task as a high-level project vision that MUST be decomposed.
+	AnalyzeTask(ctx context.Context, task string, isVision bool) (LLMResponse, error)
 }
 
 // IsLeaf returns true if the node is atomic and has no children.
