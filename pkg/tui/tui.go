@@ -724,11 +724,28 @@ func (m model) View() string {
 
 	// Build the status bar
 	statusText := " Commands: j/k nav | e edit | d del | R replan | + child | [ before | ] after | q quit "
-	statusBar := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("253")). // Bright light gray/white text
-		Background(lipgloss.Color("235")). // Slightly lighter dark gray background
-		Width(termWidth).
+
+	pendingCount := 0
+	for _, n := range m.nodes {
+		if n.Status == planner.StatusPending {
+			pendingCount++
+		}
+	}
+	pendingText := fmt.Sprintf(" pending:%d ", pendingCount)
+
+	leftPart := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("253")).
+		Background(lipgloss.Color("235")).
 		Render(statusText)
+
+	rightPart := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("253")).
+		Background(lipgloss.Color("235")).
+		Width(termWidth - lipgloss.Width(leftPart)).
+		Align(lipgloss.Right).
+		Render(pendingText)
+
+	statusBar := lipgloss.JoinHorizontal(lipgloss.Left, leftPart, rightPart)
 
 	// Since we are using an AltScreen, the height is fixed to m.height.
 	// We want the main content to take up everything except the status bar height,
