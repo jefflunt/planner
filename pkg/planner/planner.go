@@ -8,15 +8,19 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 // Config represents the planner configuration
 type Config struct {
-	PlansDir  string
-	StateFile string
-	Workspace string // Directory to hold workspaces
+	PlansDir          string
+	StateFile         string
+	Workspace         string // Directory to hold workspaces
+	MaxLLMConcurrency int
+	MaxRetries        int
 }
 
 // ListPlans returns a list of available plan files in the PlansDir, without the .json extension.
@@ -51,19 +55,28 @@ type UserPrompt struct {
 
 // Planner is the central orchestrator for the task tree
 type Planner struct {
-	mu      sync.RWMutex
-	Root    *Node           `json:"root"`
-	Config  Config          `json:"config"`
-	LLM     LLMClient       `json:"-"`
-	Prompts chan UserPrompt `json:"-"` // Channel to request user input
+	mu           sync.RWMutex
+	Root         *Node           `json:"root"`
+	Config       Config          `json:"config"`
+	LLM          LLMClient       `json:"-"`
+	Prompts      chan UserPrompt `json:"-"` // Channel to request user input
+	llmSemaphore chan struct{}   `json:"-"`
 }
 
 // NewPlanner creates a new planner instance
 func NewPlanner(cfg Config, llm LLMClient) *Planner {
+	if cfg.MaxLLMConcurrency == 0 {
+		cfg.MaxLLMConcurrency = 4
+	}
+	if cfg.MaxRetries == 0 {
+		cfg.MaxRetries = 3
+	}
+
 	return &Planner{
-		Config:  cfg,
-		LLM:     llm,
-		Prompts: make(chan UserPrompt),
+		Config:       cfg,
+		LLM:          llm,
+		Prompts:      make(chan UserPrompt),
+		llmSemaphore: make(chan struct{}, cfg.MaxLLMConcurrency),
 	}
 }
 
@@ -127,10 +140,28 @@ func (p *Planner) Start(ctx context.Context, task string) error {
 		return err
 	}
 
-	return p.Plan(ctx, p.Root)
+	err := p.Plan(ctx, p.Root)
+	p.Save()
+	return err
 }
 
-// EditNode updates a node's task string, clears its children, and resets its status.
+// analyzeTaskWithRetry wraps the LLM call with a semaphore and retry logic.
+func (p *Planner) analyzeTaskWithRetry(ctx context.Context, req LLMRequest) (LLMResponse, error) {
+	p.llmSemaphore <- struct{}{}
+	defer func() { <-p.llmSemaphore }()
+
+	var lastErr error
+	for i := 0; i <= p.Config.MaxRetries; i++ {
+		resp, err := p.LLM.AnalyzeTask(ctx, req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+		time.Sleep(time.Duration(i+1) * 500 * time.Millisecond) // Simple backoff
+	}
+	return LLMResponse{}, fmt.Errorf("failed after %d retries: %w", p.Config.MaxRetries, lastErr)
+}
+
 func (p *Planner) EditNode(id string, newTask string) (*Node, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -351,12 +382,20 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 		return nil
 	}
 	if status == StatusComposite {
+		g, gCtx := errgroup.WithContext(ctx)
 		for _, child := range children {
-			if err := p.Plan(ctx, child); err != nil {
-				return err
-			}
+			c := child
+			g.Go(func() error {
+				if err := p.Plan(gCtx, c); err != nil {
+					p.mu.Lock()
+					c.Status = StatusError
+					c.Task = "!" + c.Task
+					p.mu.Unlock()
+				}
+				return nil
+			})
 		}
-		return nil
+		return g.Wait()
 	}
 
 	pwd, _ := os.Getwd()
@@ -366,7 +405,6 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 		p.mu.Lock()
 		node.Status = StatusPending
 		p.mu.Unlock()
-		p.Save()
 
 		ancestry := p.GetAncestry(node)
 
@@ -378,12 +416,12 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 		}
 
 		// Ask LLM what to do
-		resp, err := p.LLM.AnalyzeTask(ctx, req)
+		resp, err := p.analyzeTaskWithRetry(ctx, req)
 		if err != nil {
 			p.mu.Lock()
 			node.Status = StatusError
+			node.Task = "!" + node.Task
 			p.mu.Unlock()
-			p.Save()
 			return fmt.Errorf("failed to analyze task %q: %w", node.Task, err)
 		}
 
@@ -391,7 +429,6 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			p.mu.Lock()
 			node.Task = resp.RewrittenTask
 			p.mu.Unlock()
-			p.Save()
 		}
 
 		switch resp.Action {
@@ -400,7 +437,6 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			node.Type = TaskTypeAtomic
 			node.Status = StatusActionable
 			p.mu.Unlock()
-			p.Save()
 			return nil // Branch terminates successfully
 
 		case ActionDecompose:
@@ -418,24 +454,30 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 				node.Children = append(node.Children, child)
 			}
 			p.mu.Unlock()
-			p.Save()
 
 			// Recursively plan children
+			g, gCtx := errgroup.WithContext(ctx)
 			p.mu.RLock()
 			currentChildren := node.Children
 			p.mu.RUnlock()
 			for _, child := range currentChildren {
-				if err := p.Plan(ctx, child); err != nil {
-					return err
-				}
+				c := child
+				g.Go(func() error {
+					if err := p.Plan(gCtx, c); err != nil {
+						p.mu.Lock()
+						c.Status = StatusError
+						c.Task = "!" + c.Task
+						p.mu.Unlock()
+					}
+					return nil
+				})
 			}
-			return nil // Finished decomposing and planning children
+			return g.Wait()
 
 		case ActionAskUser:
 			p.mu.Lock()
 			node.Status = StatusNeedsInput
 			p.mu.Unlock()
-			p.Save()
 
 			// Block and ask user for clarification
 			replyChan := make(chan string)
@@ -466,7 +508,6 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			node.Task = fmt.Sprintf("%s\n\n[Clarification]: %s", node.Task, answer)
 			node.Status = StatusPending
 			p.mu.Unlock()
-			p.Save()
 			// The loop will continue, passing the augmented task back to the LLM
 		}
 	}
