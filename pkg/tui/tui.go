@@ -34,12 +34,13 @@ const (
 )
 
 type model struct {
-	p           *planner.Planner
-	cursorIndex int
-	nodes       []*planner.Node
-	err         error
-	width       int
-	height      int
+	p              *planner.Planner
+	cursorIndex    int
+	viewportOffset int
+	nodes          []*planner.Node
+	err            error
+	width          int
+	height         int
 
 	state        uiState
 	cfg          *config.Config
@@ -470,10 +471,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.cursorIndex > 0 {
 				m.cursorIndex--
+				if m.cursorIndex < m.viewportOffset {
+					m.viewportOffset = m.cursorIndex
+				}
 			}
 		case "down", "j":
 			if m.cursorIndex < len(m.nodes)-1 {
 				m.cursorIndex++
+				// Rough estimate of visible items: ~half screen
+				visibleLines := m.height / 2
+				if m.cursorIndex >= m.viewportOffset+visibleLines {
+					m.viewportOffset = m.cursorIndex - visibleLines + 1
+				}
 			}
 		case "e":
 			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
@@ -625,6 +634,11 @@ func (m model) View() string {
 
 	var tasksBuilder strings.Builder
 	for i, n := range m.nodes {
+		// Only render items within the viewport
+		if i < m.viewportOffset || i >= m.viewportOffset+m.height {
+			continue
+		}
+
 		cursor := "  "
 		if m.cursorIndex == i {
 			cursor = "> "
