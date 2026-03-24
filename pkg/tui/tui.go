@@ -430,7 +430,7 @@ func (m model) View() string {
 		if n.Status == planner.StatusNeedsInput {
 			indicator = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8A65")).Render("? ")
 		} else if n.Type == planner.TaskTypeComposite {
-			indicator = "+ "
+			indicator = "- "
 		} else if n.Type == planner.TaskTypeAtomic {
 			indicator = "- "
 		} else {
