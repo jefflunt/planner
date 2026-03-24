@@ -397,8 +397,6 @@ func (m model) View() string {
 	var b strings.Builder
 
 	if m.askingForTask {
-		b.WriteString(titleStyle.Render(" Planner "))
-		b.WriteString("\n\n")
 		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Enter the task you want to break down:")))
 		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
@@ -409,9 +407,6 @@ func (m model) View() string {
 	if len(m.nodes) == 0 {
 		return "Initializing plan..."
 	}
-
-	b.WriteString(titleStyle.Render(fmt.Sprintf(" Planner: %s ", m.p.Root.Task)))
-	b.WriteString("\n\n")
 
 	for i, n := range m.nodes {
 		cursor := "  "
@@ -502,7 +497,7 @@ func (m model) View() string {
 	// Build the status bar
 	statusText := " Commands: [j/k] nav | [e] edit | [d] del | [R] replan | [+] child | [[] before | []] after | [q] quit "
 	statusBar := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")). // Dark gray text
+		Foreground(lipgloss.Color("253")). // Bright light gray/white text
 		Background(lipgloss.Color("235")). // Slightly lighter dark gray background
 		Width(termWidth).
 		Render(statusText)
