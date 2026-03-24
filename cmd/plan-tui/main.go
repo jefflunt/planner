@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"planner/pkg/config"
@@ -12,7 +13,18 @@ import (
 	"planner/pkg/tui"
 )
 
+func isGitRepo() bool {
+	cmd := exec.Command("git", "status")
+	err := cmd.Run()
+	return err == nil
+}
+
 func main() {
+	if !isGitRepo() {
+		fmt.Println("Error: planner must be run from inside a Git repository. This ensures accurate codebase context via .gitignore.")
+		os.Exit(1)
+	}
+
 	// Default configuration
 	configFile := config.DefaultPath()
 	stateFile := "planner-state.json"
