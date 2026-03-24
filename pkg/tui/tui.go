@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -34,6 +35,9 @@ type model struct {
 	textInput     textinput.Model
 	askingForTask bool
 	ctx           context.Context
+
+	// Spinner
+	spinner spinner.Model
 }
 
 func initialModel(p *planner.Planner, askingForTask bool, ctx context.Context) model {
@@ -48,11 +52,16 @@ func initialModel(p *planner.Planner, askingForTask bool, ctx context.Context) m
 		ti.Placeholder = "Type your answer..."
 	}
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	return model{
 		p:             p,
 		textInput:     ti,
 		askingForTask: askingForTask,
 		ctx:           ctx,
+		spinner:       s,
 	}
 }
 
@@ -105,7 +114,7 @@ func tickCmd() tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(tickCmd(), listenForPrompt(m.p), textinput.Blink)
+	return tea.Batch(m.spinner.Tick, tickCmd(), listenForPrompt(m.p), textinput.Blink)
 }
 
 func flattenTree(n *planner.Node) []*planner.Node {
@@ -133,6 +142,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.textInput.Width = m.width - 4
 		}
 
+	case spinner.TickMsg:
+		var cmdSpinner tea.Cmd
+		m.spinner, cmdSpinner = m.spinner.Update(msg)
+		return m, cmdSpinner
+
 	case promptMsg:
 		prompt := planner.UserPrompt(msg)
 		m.currentPrompt = &prompt
@@ -143,7 +157,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		m.p.Load() // Reload state from disk to catch async updates
 		m.nodes = flattenTree(m.p.Root)
-		return m, tickCmd()
+
+		// Let the spinner update as well so it doesn't freeze when tickCmd returns
+		var cmdSpinner tea.Cmd
+		m.spinner, cmdSpinner = m.spinner.Update(msg)
+		return m, tea.Batch(tickCmd(), cmdSpinner)
 
 	case tea.KeyMsg:
 		// If we are currently asking for the root task
@@ -249,11 +267,16 @@ func (m model) View() string {
 			s = statusPendingStyle
 		}
 
-		indicator := "? "
-		if n.Type == planner.TaskTypeComposite {
+		var indicator string
+		if n.Status == planner.StatusNeedsInput {
+			indicator = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8A65")).Render("? ")
+		} else if n.Type == planner.TaskTypeComposite {
 			indicator = "+ "
 		} else if n.Type == planner.TaskTypeAtomic {
 			indicator = "- "
+		} else {
+			// Still evaluating
+			indicator = m.spinner.View()
 		}
 
 		var line string
