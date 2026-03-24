@@ -19,5 +19,5 @@
 go.work
 
 # Planner specific ephemeral files
-*-state.json
+/plans/
 /workspace/

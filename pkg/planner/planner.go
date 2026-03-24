@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -13,8 +14,31 @@ import (
 
 // Config represents the planner configuration
 type Config struct {
+	PlansDir  string
 	StateFile string
 	Workspace string // Directory to hold workspaces
+}
+
+// ListPlans returns a list of available plan files in the PlansDir, without the .json extension.
+func ListPlans(plansDir string) ([]string, error) {
+	var plans []string
+
+	entries, err := os.ReadDir(plansDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return plans, nil
+		}
+		return nil, fmt.Errorf("failed to read plans directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
+			name := strings.TrimSuffix(entry.Name(), ".json")
+			plans = append(plans, name)
+		}
+	}
+
+	return plans, nil
 }
 
 // UserPrompt allows the planner to bubble up a question to the UI and wait for a reply

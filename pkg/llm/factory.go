@@ -29,3 +29,7 @@ func (m *MockClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest) (p
 		Action: planner.ActionActionable,
 	}, nil
 }
+
+func (m *MockClient) GeneratePlanName(ctx context.Context, task string) (string, error) {
+	return "mock-plan-name", nil
+}

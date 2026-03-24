@@ -66,6 +66,9 @@ type LLMClient interface {
 	// AnalyzeTask evaluates a task to determine if it's actionable (single file operation),
 	// if it needs decomposition, or if it requires user clarification.
 	AnalyzeTask(ctx context.Context, req LLMRequest) (LLMResponse, error)
+
+	// GeneratePlanName creates a short, descriptive, unique filename (without extension) for a new plan based on the task description.
+	GeneratePlanName(ctx context.Context, task string) (string, error)
 }
 
 // IsLeaf returns true if the node is atomic and has no children.

@@ -121,3 +121,47 @@ JSON Format:
 
 	return llmResp, nil
 }
+
+func (c *GeminiClient) GeneratePlanName(ctx context.Context, task string) (string, error) {
+	model := c.client.GenerativeModel(c.model)
+	model.ResponseMIMEType = "application/json"
+
+	prompt := fmt.Sprintf(`You are an assistant that creates short, descriptive, unique filenames for task plans.
+Given the following task description, generate a short filename (kebab-case, max 5-6 words) without any file extension.
+
+Task:
+"""
+%s
+"""
+
+Respond with a JSON object containing a single key "filename" with your chosen name.
+Example: {"filename": "add-user-auth-system"}`, task)
+
+	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	if err != nil {
+		return "", fmt.Errorf("gemini generation failed: %w", err)
+	}
+
+	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("gemini returned an empty response")
+	}
+
+	part := resp.Candidates[0].Content.Parts[0]
+	text, ok := part.(genai.Text)
+	if !ok {
+		return "", fmt.Errorf("expected text response from gemini, got %T", part)
+	}
+
+	var result struct {
+		Filename string `json:"filename"`
+	}
+	if err := json.Unmarshal([]byte(text), &result); err != nil {
+		return "", fmt.Errorf("failed to unmarshal gemini json: %w\nResponse was: %s", err, text)
+	}
+
+	if result.Filename == "" {
+		return "", fmt.Errorf("gemini returned an empty filename")
+	}
+
+	return result.Filename, nil
+}

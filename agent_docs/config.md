@@ -4,6 +4,7 @@ The core configuration for the planner is managed via the `planner.Config` struc
 
 ```go
 type Config struct {
+	PlansDir  string
 	StateFile string
 	Workspace string // Directory to hold workspaces
 }
@@ -16,6 +17,7 @@ By default, the planner looks for a YAML configuration file at `~/.planner/confi
 An example `config.yml` looks like:
 
 ```yaml
+plans_dir: "~/.planner/plans"
 llm:
   provider: "gemini"
   model: "gemini-3.1-flash-lite-preview"
@@ -24,15 +26,19 @@ llm:
 
 ## CLI Behavior
 
-`plan-tui` currently handles a few paths implicitly. It does not use standard CLI flags at the moment, but loads configuration like so:
+`plan-tui` handles configuration and CLI flags:
 
 1. **Config Path**
    - **Default:** `~/.planner/config.yml`
 
-2. **State Path**
-   - **Default:** `planner-state.json` (in the current directory)
-   - **Usage:** Changes where the JSON persistence file is stored and loaded from. Crucial if you are running multiple independent plans in the same directory.
+2. **Plans Directory**
+   - **Default:** `~/.planner/plans/`
+   - **Usage:** Stores all the individual plan JSON files (e.g., `~/.planner/plans/my-plan.json`).
 
-3. **Workspace**
+3. **Plan Name**
+   - **CLI Flag:** `-plan my-plan`
+   - **Usage:** Loads or creates a plan with the given name. If not provided, the user will be prompted with an interactive menu to select an existing plan or create a new one.
+
+4. **Workspace**
    - **Default:** `./workspace`
    - **Usage:** Specifies the directory meant to hold the execution artifacts. *(Note: This was originally used in the `fractals` execution framework, but remains here as part of the domain terminology in case the generated plan references it).*

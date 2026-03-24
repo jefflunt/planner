@@ -36,4 +36,4 @@ The core planner is entirely decoupled from the user interface, but the primary 
 
 ### State Persistence
 
-The tree is saved to `planner-state.json` (by default) after *every* mutation. The `Planner.Save()` method uses `sync.RWMutex` to ensure thread-safe writes. This file acts as the single source of truth, meaning a planning session can be interrupted and resumed identically simply by reloading the file.
+The tree is saved to `plans/<plan-name>.json` (by default) after *every* mutation. The `Planner.Save()` method uses `sync.RWMutex` to ensure thread-safe writes. This directory structure enables managing multiple concurrent plans effectively. Each file acts as a single source of truth for its specific plan, meaning a planning session can be interrupted and resumed identically simply by selecting the plan again in the TUI or providing it via CLI arguments.

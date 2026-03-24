@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -27,8 +28,11 @@ func main() {
 
 	// Default configuration
 	configFile := config.DefaultPath()
-	stateFile := "planner-state.json"
 	workspace := "./workspace"
+
+	var planName string
+	flag.StringVar(&planName, "plan", "", "Name of the plan to load or create")
+	flag.Parse()
 
 	var initialTask string
 
@@ -40,9 +44,9 @@ func main() {
 		if err == nil {
 			initialTask = strings.TrimSpace(string(data))
 		}
-	} else if len(os.Args) > 1 {
+	} else if flag.NArg() > 0 {
 		// Optionally allow passing the task as arguments
-		initialTask = strings.Join(os.Args[1:], " ")
+		initialTask = strings.Join(flag.Args(), " ")
 	}
 
 	// Load or create default configuration
@@ -50,6 +54,16 @@ func main() {
 	if err != nil {
 		fmt.Printf("Error loading config: %v\n", err)
 		os.Exit(1)
+	}
+
+	plansDir := cfg.PlansDir
+	if plansDir == "" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			plansDir = home + "/.planner/plans"
+		} else {
+			plansDir = "plans"
+		}
 	}
 
 	// Create an overarching context
@@ -63,7 +77,7 @@ func main() {
 	}
 
 	// Launch the TUI
-	if err := tui.StartTUI(initialTask, stateFile, workspace, client); err != nil {
+	if err := tui.StartTUI(planName, initialTask, plansDir, workspace, client); err != nil {
 		fmt.Printf("Error starting TUI: %v\n", err)
 		os.Exit(1)
 	}

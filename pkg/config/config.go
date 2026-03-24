@@ -10,7 +10,8 @@ import (
 )
 
 type Config struct {
-	LLM struct {
+	PlansDir string `yaml:"plans_dir"`
+	LLM      struct {
 		Provider string `yaml:"provider"` // e.g., "gemini"
 		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview"
 		APIKey   string `yaml:"api_key"`  // Can be empty if using env var
@@ -53,11 +54,18 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file at %s: %w", expandedPath, err)
 	}
 
+	if cfg.PlansDir == "" {
+		cfg.PlansDir = "~/.planner/plans"
+	}
+
+	cfg.PlansDir = expandTilde(cfg.PlansDir)
+
 	return &cfg, nil
 }
 
 func DefaultConfig() *Config {
 	cfg := &Config{}
+	cfg.PlansDir = expandTilde("~/.planner/plans")
 	cfg.LLM.Provider = "gemini"
 	cfg.LLM.Model = "gemini-3.1-flash-lite-preview"
 	return cfg

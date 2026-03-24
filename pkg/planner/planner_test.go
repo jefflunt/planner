@@ -21,6 +21,47 @@ func (m *simpleMockClient) AnalyzeTask(ctx context.Context, req LLMRequest) (LLM
 	return LLMResponse{}, fmt.Errorf("unexpected task: %s", req.Task)
 }
 
+func (m *simpleMockClient) GeneratePlanName(ctx context.Context, task string) (string, error) {
+	return "test-plan", nil
+}
+
+func TestPlannerListPlans(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create some dummy plan files
+	os.WriteFile(filepath.Join(tempDir, "plan1.json"), []byte("{}"), 0644)
+	os.WriteFile(filepath.Join(tempDir, "plan2.json"), []byte("{}"), 0644)
+	os.WriteFile(filepath.Join(tempDir, "not-a-plan.txt"), []byte("txt"), 0644)
+
+	plans, err := ListPlans(tempDir)
+	if err != nil {
+		t.Fatalf("ListPlans failed: %v", err)
+	}
+
+	if len(plans) != 2 {
+		t.Errorf("Expected 2 plans, got %d", len(plans))
+	}
+
+	foundPlan1 := false
+	foundPlan2 := false
+	for _, p := range plans {
+		if p == "plan1" {
+			foundPlan1 = true
+		}
+		if p == "plan2" {
+			foundPlan2 = true
+		}
+	}
+
+	if !foundPlan1 || !foundPlan2 {
+		t.Errorf("ListPlans didn't find the expected plans: %v", plans)
+	}
+}
+
 func TestPlannerPersistence(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "planner-test")
 	if err != nil {
