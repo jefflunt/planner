@@ -318,25 +318,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.planCursor--
 				}
 			case "down", "j":
-				if m.planCursor < len(m.plans) { // Allow +1 for "Create New Plan"
+				if m.planCursor < len(m.plans) {
 					m.planCursor++
 				}
 			case "enter":
-				if m.planCursor < len(m.plans) {
-					m.planName = m.plans[m.planCursor]
-					err := startPlanning(&m)
-					if err != nil {
-						m.err = err
-						return m, tea.Quit
-					}
-					return m, listenForPrompt(m.p)
-				} else {
+				if m.planCursor == 0 {
 					m.state = stateAskTask
 					m.planName = ""
 					m.textInput.SetValue("")
 					m.textInput.Placeholder = "What task do you want to plan?"
 					m.textInput.Focus()
 					return m, textinput.Blink
+				} else {
+					m.planName = m.plans[m.planCursor-1]
+					err := startPlanning(&m)
+					if err != nil {
+						m.err = err
+						return m, tea.Quit
+					}
+					return m, listenForPrompt(m.p)
 				}
 			case "q", "ctrl+c":
 				return m, tea.Quit
@@ -574,28 +574,31 @@ func (m model) View() string {
 		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Select a plan or create a new one:")))
 		b.WriteString("\n\n")
 
+		// Render [Create New Plan] (index 0)
+		cursor := "  "
+		if m.planCursor == 0 {
+			cursor = "> "
+		}
+		createLine := fmt.Sprintf("%s[Create New Plan]", cursor)
+		if m.planCursor == 0 {
+			b.WriteString(selectedStyle.Render(createLine) + "\n")
+		} else {
+			b.WriteString(createLine + "\n")
+		}
+
+		// Render plans (index 1 to len(m.plans))
 		for i, p := range m.plans {
+			idx := i + 1
 			cursor := "  "
-			if m.planCursor == i {
+			if m.planCursor == idx {
 				cursor = "> "
 			}
 			line := fmt.Sprintf("%s%s", cursor, p)
-			if m.planCursor == i {
+			if m.planCursor == idx {
 				b.WriteString(selectedStyle.Render(line) + "\n")
 			} else {
 				b.WriteString(line + "\n")
 			}
-		}
-
-		cursor := "  "
-		if m.planCursor == len(m.plans) {
-			cursor = "> "
-		}
-		createLine := fmt.Sprintf("%s[Create New Plan]", cursor)
-		if m.planCursor == len(m.plans) {
-			b.WriteString(selectedStyle.Render(createLine) + "\n")
-		} else {
-			b.WriteString(createLine + "\n")
 		}
 
 		b.WriteString("\n(Press Enter to select, j/k to navigate)")
