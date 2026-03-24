@@ -12,21 +12,21 @@ import (
 	"planner/pkg/planner"
 )
 
-type CopilotClient struct {
+type OpencodeClient struct {
 	model  string
 	runner func(ctx context.Context, name string, args ...string) ([]byte, []byte, error)
 }
 
-func NewCopilotClient(ctx context.Context, cfg *config.Config) (*CopilotClient, error) {
-	// Verify that the copilot executable is available
-	if _, err := exec.LookPath("copilot"); err != nil {
-		return nil, fmt.Errorf("copilot command line interface not found in PATH: %w", err)
+func NewOpencodeClient(ctx context.Context, cfg *config.Config) (*OpencodeClient, error) {
+	// Verify that the opencode executable is available
+	if _, err := exec.LookPath("opencode"); err != nil {
+		return nil, fmt.Errorf("opencode command line interface not found in PATH: %w", err)
 	}
 
 	model := cfg.LLM.Model
 	// If no model is specified, we can leave it empty to let the CLI choose the default
 
-	return &CopilotClient{
+	return &OpencodeClient{
 		model: model,
 		runner: func(ctx context.Context, name string, args ...string) ([]byte, []byte, error) {
 			cmd := exec.CommandContext(ctx, name, args...)
@@ -40,26 +40,27 @@ func NewCopilotClient(ctx context.Context, cfg *config.Config) (*CopilotClient, 
 	}, nil
 }
 
-func (c *CopilotClient) executePrompt(ctx context.Context, prompt string) (string, error) {
-	args := []string{"-s", "-p", prompt, "--excluded-tools=*"}
+func (c *OpencodeClient) executePrompt(ctx context.Context, prompt string) (string, error) {
+	// Use 'run' subcommand for messages
+	args := []string{"run", prompt, "--format", "json"}
 	if c.model != "" {
 		args = append(args, "--model", c.model)
 	}
 
-	out, stderr, err := c.runner(ctx, "copilot", args...)
+	out, stderr, err := c.runner(ctx, "opencode", args...)
 	if err != nil {
-		return "", fmt.Errorf("copilot cli failed: %w\nstderr: %s", err, string(stderr))
+		return "", fmt.Errorf("opencode cli failed: %w\nstderr: %s", err, string(stderr))
 	}
 
 	output := strings.TrimSpace(string(out))
 
-	// Extract JSON block if copilot included other text
+	// Extract JSON block if opencode included other text
 	output = extractJSON(output)
 
 	return output, nil
 }
 
-func (c *CopilotClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest) (planner.LLMResponse, error) {
+func (c *OpencodeClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest) (planner.LLMResponse, error) {
 	visionRule := ""
 	if req.IsVision {
 		visionRule = "\n\nCRITICAL: This task is the 'Vision' or 'Root' description of the project. It MUST be decomposed into smaller actionable steps, even if it seems simple. NEVER mark a root vision as 'actionable'."
@@ -79,7 +80,7 @@ func (c *CopilotClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest)
 	}
 
 	prompt := fmt.Sprintf(`You are an expert agentic task orchestrator. Your job is to analyze a task and decide whether it is actionable, requires decomposition, or needs clarification from the user.
-
+	
 CRITICAL RULE (Actionable Heuristic): 
 A task is ONLY "actionable" if it describes the creation, deletion, or editing of ONE SINGLE FILE on disk. 
 - Example: "Refactor the authentication module" -> Not Actionable (Too vague, multiple files).
@@ -115,13 +116,13 @@ JSON Format:
 
 	var llmResp planner.LLMResponse
 	if err := json.Unmarshal([]byte(output), &llmResp); err != nil {
-		return planner.LLMResponse{}, fmt.Errorf("failed to unmarshal copilot json: %w\nResponse was: %s", err, output)
+		return planner.LLMResponse{}, fmt.Errorf("failed to unmarshal opencode json: %w\nResponse was: %s", err, output)
 	}
 
 	return llmResp, nil
 }
 
-func (c *CopilotClient) GeneratePlanName(ctx context.Context, task string) (string, error) {
+func (c *OpencodeClient) GeneratePlanName(ctx context.Context, task string) (string, error) {
 	prompt := fmt.Sprintf(`You are an assistant that creates short, descriptive, unique filenames for task plans.
 Given the following task description, generate a short filename (kebab-case, max 5-6 words) without any file extension.
 
@@ -142,11 +143,11 @@ Example: {"filename": "add-user-auth-system"}`, task)
 		Filename string `json:"filename"`
 	}
 	if err := json.Unmarshal([]byte(output), &result); err != nil {
-		return "", fmt.Errorf("failed to unmarshal copilot json: %w\nResponse was: %s", err, output)
+		return "", fmt.Errorf("failed to unmarshal opencode json: %w\nResponse was: %s", err, output)
 	}
 
 	if result.Filename == "" {
-		return "", fmt.Errorf("copilot returned an empty filename")
+		return "", fmt.Errorf("opencode returned an empty filename")
 	}
 
 	return result.Filename, nil

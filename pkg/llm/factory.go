@@ -15,6 +15,8 @@ func NewClient(ctx context.Context, cfg *config.Config) (planner.LLMClient, erro
 		return NewGeminiClient(ctx, cfg)
 	case "copilot":
 		return NewCopilotClient(ctx, cfg)
+	case "opencode":
+		return NewOpencodeClient(ctx, cfg)
 	case "mock":
 		// Mock primarily used for tests, but can be forced via config
 		return &MockClient{}, nil
