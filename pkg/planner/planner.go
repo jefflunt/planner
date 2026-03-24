@@ -132,6 +132,31 @@ func (p *Planner) EditNode(id string, newTask string) (*Node, error) {
 	return node, nil
 }
 
+// ReplanNode clears a node's children, resets its status, and saves.
+func (p *Planner) ReplanNode(id string) (*Node, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.Root == nil {
+		return nil, fmt.Errorf("no active plan")
+	}
+
+	node := p.Root.Find(id)
+	if node == nil {
+		return nil, fmt.Errorf("node not found")
+	}
+
+	node.Status = StatusPending
+	node.Type = ""
+	node.Children = nil
+
+	if err := p.saveUnlocked(); err != nil {
+		return nil, err
+	}
+
+	return node, nil
+}
+
 // AddChild adds a new child node to the specified parent.
 func (p *Planner) AddChild(parentID string, task string) (*Node, error) {
 	p.mu.Lock()

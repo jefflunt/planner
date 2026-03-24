@@ -333,6 +333,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+		case "R":
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+				node := m.nodes[m.cursorIndex]
+				replannedNode, err := m.p.ReplanNode(node.ID)
+				if err == nil {
+					go m.p.Plan(m.ctx, replannedNode)
+				}
+
+				m.p.RLock()
+				m.nodes = flattenTree(m.p.Root)
+				m.p.RUnlock()
+				return m, nil
+			}
 		case "+":
 			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
 				m.addingChildTo = m.nodes[m.cursorIndex]
@@ -467,7 +480,7 @@ func (m model) View() string {
 		b.WriteString(m.textInput.View())
 		b.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)")
 	} else {
-		b.WriteString("\n\nCommands: [j/k] navigate | [e] edit | [d] delete | [+] add child | [`] add sibling | [q] quit")
+		b.WriteString("\n\nCommands: [j/k] navigate | [e] edit | [d] delete | [R] replan | [+] add child | [`] add sibling | [q] quit")
 	}
 
 	return b.String()

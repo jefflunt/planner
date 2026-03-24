@@ -353,3 +353,43 @@ func TestPlannerEditNode(t *testing.T) {
 		t.Errorf("Expected 0 children, got %d", len(node.Children))
 	}
 }
+
+func TestPlannerReplanNode(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+
+	p := NewPlanner(cfg, &simpleMockClient{})
+	p.Root = &Node{
+		ID:     "root",
+		Task:   "Root",
+		Status: StatusActionable,
+		Type:   TaskTypeAtomic,
+		Children: []*Node{
+			{ID: "child-1", Task: "Child 1"},
+		},
+	}
+
+	node, err := p.ReplanNode("root")
+	if err != nil {
+		t.Fatalf("Failed to replan node: %v", err)
+	}
+
+	if node.Task != "Root" {
+		t.Errorf("Expected task to remain 'Root', got %q", node.Task)
+	}
+	if node.Status != StatusPending {
+		t.Errorf("Expected status to be StatusPending, got %s", node.Status)
+	}
+	if node.Type != "" {
+		t.Errorf("Expected type to be empty, got %s", node.Type)
+	}
+	if len(node.Children) != 0 {
+		t.Errorf("Expected 0 children, got %d", len(node.Children))
+	}
+}
