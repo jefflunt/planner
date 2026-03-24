@@ -131,8 +131,16 @@ func StartTUI(planName string, initialTask string, plansDir string, workspace st
 	}
 
 	program := tea.NewProgram(m, tea.WithAltScreen())
-	_, err = program.Run()
-	return err
+	finalModel, err := program.Run()
+	if err != nil {
+		return err
+	}
+
+	if fm, ok := finalModel.(model); ok && fm.err != nil {
+		return fm.err
+	}
+
+	return nil
 }
 
 func startPlanning(m *model) error {
