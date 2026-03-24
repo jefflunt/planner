@@ -27,7 +27,7 @@ func main() {
 		Short: "A recursive agentic task orchestrator (CLI)",
 	}
 
-	rootCmd.PersistentFlags().StringVar(&configFile, "config", "planner.yaml", "Path to configuration file")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", config.DefaultPath(), "Path to configuration file")
 	rootCmd.PersistentFlags().StringVar(&stateFile, "state", "planner-state.json", "Path to save planner state")
 	rootCmd.PersistentFlags().StringVar(&workspace, "workspace", "./workspace", "Workspace directory")
 

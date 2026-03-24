@@ -14,7 +14,7 @@ import (
 
 func main() {
 	// Default configuration
-	configFile := "planner.yaml"
+	configFile := config.DefaultPath()
 	stateFile := "planner-state.json"
 	workspace := "./workspace"
 

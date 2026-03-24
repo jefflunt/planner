@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -10,24 +12,45 @@ import (
 type Config struct {
 	LLM struct {
 		Provider string `yaml:"provider"` // e.g., "gemini"
-		Model    string `yaml:"model"`    // e.g., "gemini-1.5-pro-latest"
+		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview"
 		APIKey   string `yaml:"api_key"`  // Can be empty if using env var
 	} `yaml:"llm"`
 }
 
+// DefaultPath returns the default location for the config file: ~/.planner/config.yml
+func DefaultPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".planner/config.yml" // fallback
+	}
+	return filepath.Join(home, ".planner", "config.yml")
+}
+
+// expandTilde handles resolving the ~ symbol in file paths
+func expandTilde(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
+}
+
 func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	expandedPath := expandTilde(path)
+	data, err := os.ReadFile(expandedPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Return default config if no file exists
 			return DefaultConfig(), nil
 		}
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		return nil, fmt.Errorf("failed to read config file at %s: %w", expandedPath, err)
 	}
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
+		return nil, fmt.Errorf("failed to parse config file at %s: %w", expandedPath, err)
 	}
 
 	return &cfg, nil
