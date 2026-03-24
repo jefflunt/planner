@@ -124,6 +124,88 @@ func (p *Planner) EditNode(id string, newTask string) (*Node, error) {
 	return node, nil
 }
 
+// AddChild adds a new child node to the specified parent.
+func (p *Planner) AddChild(parentID string, task string) (*Node, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.Root == nil {
+		return nil, fmt.Errorf("no active plan")
+	}
+
+	parent := p.Root.Find(parentID)
+	if parent == nil {
+		return nil, fmt.Errorf("parent node not found")
+	}
+
+	parent.Type = TaskTypeComposite
+	parent.Status = StatusComposite
+
+	child := &Node{
+		ID:       uuid.New().String(),
+		ParentID: parent.ID,
+		Task:     task,
+		Status:   StatusPending,
+		Depth:    parent.Depth + 1,
+	}
+
+	parent.Children = append(parent.Children, child)
+
+	if err := p.saveUnlocked(); err != nil {
+		return nil, err
+	}
+
+	return child, nil
+}
+
+// AddSibling adds a new node immediately after the specified sibling.
+func (p *Planner) AddSibling(siblingID string, task string) (*Node, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.Root == nil {
+		return nil, fmt.Errorf("no active plan")
+	}
+
+	if p.Root.ID == siblingID {
+		return nil, fmt.Errorf("cannot add sibling to root node")
+	}
+
+	parent := p.findParent(p.Root, siblingID)
+	if parent == nil {
+		return nil, fmt.Errorf("parent not found for sibling")
+	}
+
+	siblingIdx := -1
+	for i, child := range parent.Children {
+		if child.ID == siblingID {
+			siblingIdx = i
+			break
+		}
+	}
+
+	if siblingIdx == -1 {
+		return nil, fmt.Errorf("sibling not found in parent's children")
+	}
+
+	newNode := &Node{
+		ID:       uuid.New().String(),
+		ParentID: parent.ID,
+		Task:     task,
+		Status:   StatusPending,
+		Depth:    parent.Depth + 1,
+	}
+
+	// Insert after siblingIdx
+	parent.Children = append(parent.Children[:siblingIdx+1], append([]*Node{newNode}, parent.Children[siblingIdx+1:]...)...)
+
+	if err := p.saveUnlocked(); err != nil {
+		return nil, err
+	}
+
+	return newNode, nil
+}
+
 // DeleteNode removes a node and all its children from the tree.
 func (p *Planner) DeleteNode(id string) error {
 	p.mu.Lock()

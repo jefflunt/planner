@@ -31,11 +31,13 @@ type model struct {
 	height      int
 
 	// Prompt handling
-	currentPrompt *planner.UserPrompt
-	editingNode   *planner.Node
-	textInput     textinput.Model
-	askingForTask bool
-	ctx           context.Context
+	currentPrompt   *planner.UserPrompt
+	editingNode     *planner.Node
+	addingChildTo   *planner.Node
+	addingSiblingTo *planner.Node
+	textInput       textinput.Model
+	askingForTask   bool
+	ctx             context.Context
 
 	// Spinner
 	spinner spinner.Model
@@ -229,6 +231,58 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+		// If we are currently adding a child
+		if m.addingChildTo != nil {
+			switch msg.Type {
+			case tea.KeyEnter:
+				newTask := strings.TrimSpace(m.textInput.Value())
+				if newTask != "" {
+					node, err := m.p.AddChild(m.addingChildTo.ID, newTask)
+					if err == nil {
+						go m.p.Plan(m.ctx, node)
+					}
+				}
+				m.addingChildTo = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyEsc:
+				m.addingChildTo = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyCtrlC:
+				return m, tea.Quit
+			}
+
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
+		// If we are currently adding a sibling
+		if m.addingSiblingTo != nil {
+			switch msg.Type {
+			case tea.KeyEnter:
+				newTask := strings.TrimSpace(m.textInput.Value())
+				if newTask != "" {
+					node, err := m.p.AddSibling(m.addingSiblingTo.ID, newTask)
+					if err == nil {
+						go m.p.Plan(m.ctx, node)
+					}
+				}
+				m.addingSiblingTo = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyEsc:
+				m.addingSiblingTo = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyCtrlC:
+				return m, tea.Quit
+			}
+
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
 		// Navigation mode
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -272,6 +326,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.cursorIndex = 0
 				}
 				return m, nil
+			}
+		case "+":
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+				m.addingChildTo = m.nodes[m.cursorIndex]
+				m.textInput.SetValue("")
+				m.textInput.Placeholder = "Enter child task..."
+				m.textInput.Focus()
+				return m, textinput.Blink
+			}
+		case "`":
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+				node := m.nodes[m.cursorIndex]
+				if m.p.Root != nil && m.p.Root.ID == node.ID {
+					// Cannot add sibling to root
+					return m, nil
+				}
+				m.addingSiblingTo = node
+				m.textInput.SetValue("")
+				m.textInput.Placeholder = "Enter sibling task..."
+				m.textInput.Focus()
+				return m, textinput.Blink
 			}
 		}
 	}
@@ -373,8 +448,20 @@ func (m model) View() string {
 		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
 		b.WriteString("\n\n(Press Enter to save and re-plan | Esc to cancel)")
+	} else if m.addingChildTo != nil {
+		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Add Child Task: "))
+		b.WriteString("\n\n")
+		b.WriteString(m.textInput.View())
+		b.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)")
+	} else if m.addingSiblingTo != nil {
+		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Add Sibling Task: "))
+		b.WriteString("\n\n")
+		b.WriteString(m.textInput.View())
+		b.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)")
 	} else {
-		b.WriteString("\n\nCommands: [j/k] navigate | [e] edit | [d] delete | [q] quit")
+		b.WriteString("\n\nCommands: [j/k] navigate | [e] edit | [d] delete | [+] add child | [`] add sibling | [q] quit")
 	}
 
 	return b.String()

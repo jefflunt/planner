@@ -234,6 +234,86 @@ func TestPlannerDeleteNode(t *testing.T) {
 	}
 }
 
+func TestPlannerAddChild(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+
+	p := NewPlanner(cfg, &simpleMockClient{})
+	p.Root = &Node{
+		ID:     "root",
+		Task:   "Root",
+		Status: StatusActionable,
+		Type:   TaskTypeAtomic,
+	}
+
+	node, err := p.AddChild("root", "New Child")
+	if err != nil {
+		t.Fatalf("Failed to add child: %v", err)
+	}
+
+	if p.Root.Type != TaskTypeComposite || p.Root.Status != StatusComposite {
+		t.Errorf("Expected root to become composite, got type=%s status=%s", p.Root.Type, p.Root.Status)
+	}
+
+	if len(p.Root.Children) != 1 || p.Root.Children[0].ID != node.ID {
+		t.Errorf("Expected root to have the new child")
+	}
+
+	if node.Task != "New Child" {
+		t.Errorf("Expected child task to be 'New Child', got %q", node.Task)
+	}
+}
+
+func TestPlannerAddSibling(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+
+	p := NewPlanner(cfg, &simpleMockClient{})
+	p.Root = &Node{
+		ID:   "root",
+		Task: "Root",
+		Children: []*Node{
+			{ID: "child-1", Task: "Child 1"},
+			{ID: "child-2", Task: "Child 2"},
+		},
+	}
+
+	// Add sibling after child-1
+	node, err := p.AddSibling("child-1", "New Sibling")
+	if err != nil {
+		t.Fatalf("Failed to add sibling: %v", err)
+	}
+
+	if len(p.Root.Children) != 3 {
+		t.Fatalf("Expected 3 children, got %d", len(p.Root.Children))
+	}
+
+	if p.Root.Children[1].ID != node.ID {
+		t.Errorf("Expected new sibling to be at index 1")
+	}
+	if p.Root.Children[2].ID != "child-2" {
+		t.Errorf("Expected child-2 to be shifted to index 2")
+	}
+
+	// Cannot add sibling to root
+	_, err = p.AddSibling("root", "Root Sibling")
+	if err == nil {
+		t.Errorf("Expected error when adding sibling to root")
+	}
+}
+
 func TestPlannerEditNode(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "planner-test")
 	if err != nil {
