@@ -130,6 +130,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		// Adjust text input width dynamically
+		if m.width > 4 {
+			m.textInput.Width = m.width - 4
+		}
+
 	case promptMsg:
 		prompt := planner.UserPrompt(msg)
 		m.currentPrompt = &prompt
@@ -203,12 +208,18 @@ func (m model) View() string {
 		return fmt.Sprintf("Error: %v", m.err)
 	}
 
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = 80
+	}
+	wrapStyle := lipgloss.NewStyle().Width(termWidth - 4)
+
 	var b strings.Builder
 
 	if m.askingForTask {
 		b.WriteString(titleStyle.Render(" Planner "))
 		b.WriteString("\n\n")
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Enter the task you want to break down:"))
+		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Enter the task you want to break down:")))
 		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
 		b.WriteString("\n\n(Press Enter to submit)")
@@ -243,18 +254,24 @@ func (m model) View() string {
 
 		line := fmt.Sprintf("%s%s[%s] %s (%s)", cursor, indent, n.Type, n.Task, s.Render(statusStr))
 
+		// Optionally wrap long lines, but keep the indent structure
+		lineWrapStyle := lipgloss.NewStyle().Width(termWidth - 4)
+		renderedLine := lineWrapStyle.Render(line)
+
 		if m.cursorIndex == i {
-			b.WriteString(selectedStyle.Render(line) + "\n")
+			b.WriteString(selectedStyle.Render(renderedLine) + "\n")
 		} else {
-			b.WriteString(line + "\n")
+			b.WriteString(renderedLine + "\n")
 		}
 	}
 
 	// Render prompt if active
 	if m.currentPrompt != nil {
-		b.WriteString("\n\n" + strings.Repeat("─", m.width/2) + "\n")
+		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
 		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Clarification Needed: "))
-		b.WriteString(m.currentPrompt.Question + "\n\n")
+		b.WriteString("\n")
+		b.WriteString(wrapStyle.Render(m.currentPrompt.Question))
+		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
 		b.WriteString("\n\n(Press Enter to submit)")
 	} else {
