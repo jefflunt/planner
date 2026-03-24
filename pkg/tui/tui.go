@@ -250,7 +250,20 @@ func (m model) View() string {
 			s = statusPendingStyle
 		}
 
-		line := fmt.Sprintf("%s%s[%s] %s (%s)", cursor, indent, n.Type, n.Task, s.Render(statusStr))
+		indicator := "? "
+		if n.Type == planner.TaskTypeComposite {
+			indicator = "+ "
+		} else if n.Type == planner.TaskTypeAtomic {
+			indicator = "- "
+		}
+
+		var line string
+		if n.Status == planner.StatusPending {
+			// Don't show "(pending)" status string if it's pending
+			line = fmt.Sprintf("%s%s%s%s", cursor, indent, indicator, n.Task)
+		} else {
+			line = fmt.Sprintf("%s%s%s%s (%s)", cursor, indent, indicator, n.Task, s.Render(statusStr))
+		}
 
 		// Optionally wrap long lines, but keep the indent structure
 		lineWrapStyle := lipgloss.NewStyle().Width(termWidth - 4)
