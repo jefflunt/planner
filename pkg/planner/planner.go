@@ -191,8 +191,8 @@ func (p *Planner) AddChild(parentID string, task string) (*Node, error) {
 	return child, nil
 }
 
-// AddSibling adds a new node immediately after the specified sibling.
-func (p *Planner) AddSibling(siblingID string, task string) (*Node, error) {
+// AddSibling adds a new node immediately before or after the specified sibling.
+func (p *Planner) AddSibling(siblingID string, task string, before bool) (*Node, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -229,8 +229,18 @@ func (p *Planner) AddSibling(siblingID string, task string) (*Node, error) {
 		Depth:    parent.Depth + 1,
 	}
 
-	// Insert after siblingIdx
-	parent.Children = append(parent.Children[:siblingIdx+1], append([]*Node{newNode}, parent.Children[siblingIdx+1:]...)...)
+	// Insert before or after siblingIdx
+	newChildren := make([]*Node, 0, len(parent.Children)+1)
+	if before {
+		newChildren = append(newChildren, parent.Children[:siblingIdx]...)
+		newChildren = append(newChildren, newNode)
+		newChildren = append(newChildren, parent.Children[siblingIdx:]...)
+	} else {
+		newChildren = append(newChildren, parent.Children[:siblingIdx+1]...)
+		newChildren = append(newChildren, newNode)
+		newChildren = append(newChildren, parent.Children[siblingIdx+1:]...)
+	}
+	parent.Children = newChildren
 
 	if err := p.saveUnlocked(); err != nil {
 		return nil, err

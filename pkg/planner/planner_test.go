@@ -291,24 +291,37 @@ func TestPlannerAddSibling(t *testing.T) {
 	}
 
 	// Add sibling after child-1
-	node, err := p.AddSibling("child-1", "New Sibling")
+	nodeAfter, err := p.AddSibling("child-1", "New Sibling After", false)
 	if err != nil {
-		t.Fatalf("Failed to add sibling: %v", err)
+		t.Fatalf("Failed to add sibling after: %v", err)
 	}
 
 	if len(p.Root.Children) != 3 {
 		t.Fatalf("Expected 3 children, got %d", len(p.Root.Children))
 	}
 
-	if p.Root.Children[1].ID != node.ID {
+	if p.Root.Children[1].ID != nodeAfter.ID {
 		t.Errorf("Expected new sibling to be at index 1")
 	}
 	if p.Root.Children[2].ID != "child-2" {
 		t.Errorf("Expected child-2 to be shifted to index 2")
 	}
 
+	// Add sibling before child-1
+	nodeBefore, err := p.AddSibling("child-1", "New Sibling Before", true)
+	if err != nil {
+		t.Fatalf("Failed to add sibling before: %v", err)
+	}
+
+	if len(p.Root.Children) != 4 {
+		t.Fatalf("Expected 4 children, got %d", len(p.Root.Children))
+	}
+	if p.Root.Children[0].ID != nodeBefore.ID {
+		t.Errorf("Expected new sibling to be at index 0")
+	}
+
 	// Cannot add sibling to root
-	_, err = p.AddSibling("root", "Root Sibling")
+	_, err = p.AddSibling("root", "Root Sibling", false)
 	if err == nil {
 		t.Errorf("Expected error when adding sibling to root")
 	}

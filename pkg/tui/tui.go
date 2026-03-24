@@ -31,13 +31,14 @@ type model struct {
 	height      int
 
 	// Prompt handling
-	currentPrompt   *planner.UserPrompt
-	editingNode     *planner.Node
-	addingChildTo   *planner.Node
-	addingSiblingTo *planner.Node
-	textInput       textinput.Model
-	askingForTask   bool
-	ctx             context.Context
+	currentPrompt       *planner.UserPrompt
+	editingNode         *planner.Node
+	addingChildTo       *planner.Node
+	addingSiblingTo     *planner.Node
+	addingSiblingBefore bool
+	textInput           textinput.Model
+	askingForTask       bool
+	ctx                 context.Context
 
 	// Spinner
 	spinner spinner.Model
@@ -268,7 +269,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case tea.KeyEnter:
 				newTask := strings.TrimSpace(m.textInput.Value())
 				if newTask != "" {
-					node, err := m.p.AddSibling(m.addingSiblingTo.ID, newTask)
+					node, err := m.p.AddSibling(m.addingSiblingTo.ID, newTask, m.addingSiblingBefore)
 					if err == nil {
 						go m.p.Plan(m.ctx, node)
 					}
@@ -354,20 +355,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Focus()
 				return m, textinput.Blink
 			}
-		case "`":
+		case "[", "]":
 			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
 				node := m.nodes[m.cursorIndex]
 				if m.p.Root != nil && m.p.Root.ID == node.ID {
 					// Cannot add sibling to root
 					return m, nil
 				}
+
 				m.addingSiblingTo = node
+				m.addingSiblingBefore = (msg.String() == "[")
 				m.textInput.SetValue("")
-				m.textInput.Placeholder = "Enter sibling task..."
+
+				if m.addingSiblingBefore {
+					m.textInput.Placeholder = "Enter sibling task (before)..."
+				} else {
+					m.textInput.Placeholder = "Enter sibling task (after)..."
+				}
+
 				m.textInput.Focus()
 				return m, textinput.Blink
 			}
 		}
+
 	}
 
 	return m, cmd
@@ -475,13 +485,45 @@ func (m model) View() string {
 		b.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)")
 	} else if m.addingSiblingTo != nil {
 		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
-		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Add Sibling Task: "))
+		var mode string
+		if m.addingSiblingBefore {
+			mode = "Before"
+		} else {
+			mode = "After"
+		}
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render(fmt.Sprintf("Add Sibling Task (%s): ", mode)))
 		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
 		b.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)")
-	} else {
-		b.WriteString("\n\nCommands: [j/k] navigate | [e] edit | [d] delete | [R] replan | [+] add child | [`] add sibling | [q] quit")
 	}
 
-	return b.String()
+	mainContent := b.String()
+
+	// Build the status bar
+	statusText := " Commands: [j/k] nav | [e] edit | [d] del | [R] replan | [+] child | [[] before | []] after | [q] quit "
+	statusBar := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")). // Dark gray text
+		Background(lipgloss.Color("235")). // Slightly lighter dark gray background
+		Width(termWidth).
+		Render(statusText)
+
+	// Since we are using an AltScreen, the height is fixed to m.height.
+	// We want the main content to take up everything except the status bar height,
+	// and we want the status bar pinned to the bottom.
+	statusHeight := lipgloss.Height(statusBar)
+
+	// If terminal is too small to render even the status bar, just return main content
+	if m.height <= statusHeight {
+		return mainContent
+	}
+
+	// Use Place to push the status bar to the very bottom
+	mainArea := lipgloss.NewStyle().
+		Height(m.height - statusHeight).
+		MaxHeight(m.height - statusHeight).
+		Width(termWidth).
+		MaxWidth(termWidth).
+		Render(mainContent)
+
+	return lipgloss.JoinVertical(lipgloss.Left, mainArea, statusBar)
 }
