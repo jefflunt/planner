@@ -239,7 +239,6 @@ func (m model) View() string {
 
 		indent := strings.Repeat("  ", n.Depth)
 
-		statusStr := string(n.Status)
 		var s lipgloss.Style
 		switch n.Status {
 		case planner.StatusActionable:
@@ -258,11 +257,11 @@ func (m model) View() string {
 		}
 
 		var line string
-		if n.Status == planner.StatusPending {
-			// Don't show "(pending)" status string if it's pending
-			line = fmt.Sprintf("%s%s%s%s", cursor, indent, indicator, n.Task)
+		if n.Status == planner.StatusNeedsInput {
+			// Only show status string if it specifically needs input
+			line = fmt.Sprintf("%s%s%s%s (%s)", cursor, indent, indicator, n.Task, s.Render(string(n.Status)))
 		} else {
-			line = fmt.Sprintf("%s%s%s%s (%s)", cursor, indent, indicator, n.Task, s.Render(statusStr))
+			line = fmt.Sprintf("%s%s%s%s", cursor, indent, indicator, n.Task)
 		}
 
 		// Optionally wrap long lines, but keep the indent structure
