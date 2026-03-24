@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -22,6 +23,15 @@ var (
 	selectedStyle         = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8A65")).Bold(true)
 )
 
+type uiState int
+
+const (
+	stateSelectPlan uiState = iota
+	stateAskTask
+	stateGeneratingPlanName
+	statePlanning
+)
+
 type model struct {
 	p           *planner.Planner
 	cursorIndex int
@@ -29,6 +39,15 @@ type model struct {
 	err         error
 	width       int
 	height      int
+
+	state        uiState
+	plansDir     string
+	plans        []string
+	planCursor   int
+	planName     string
+	initialTask  string
+	llmClient    planner.LLMClient
+	workspaceDir string
 
 	// Prompt handling
 	currentPrompt       *planner.UserPrompt
@@ -44,13 +63,13 @@ type model struct {
 	spinner spinner.Model
 }
 
-func initialModel(p *planner.Planner, askingForTask bool, ctx context.Context) model {
+func initialModel(ctx context.Context, state uiState, plansDir string, plans []string, planName string, initialTask string, workspace string, client planner.LLMClient) model {
 	ti := textinput.New()
 	ti.Focus()
 	ti.CharLimit = 1024
 	ti.Width = 60
 
-	if askingForTask {
+	if state == stateAskTask {
 		ti.Placeholder = "What task do you want to plan?"
 	} else {
 		ti.Placeholder = "Type your answer..."
@@ -61,55 +80,119 @@ func initialModel(p *planner.Planner, askingForTask bool, ctx context.Context) m
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
-		p:             p,
-		textInput:     ti,
-		askingForTask: askingForTask,
-		ctx:           ctx,
-		spinner:       s,
+		state:        state,
+		plansDir:     plansDir,
+		plans:        plans,
+		planName:     planName,
+		initialTask:  initialTask,
+		workspaceDir: workspace,
+		llmClient:    client,
+		textInput:    ti,
+		ctx:          ctx,
+		spinner:      s,
 	}
 }
 
-func StartTUI(task string, stateFile string, workspace string, client planner.LLMClient) error {
-	cfg := planner.Config{
-		StateFile: stateFile,
-		Workspace: workspace,
-	}
-
-	p := planner.NewPlanner(cfg, client)
-
+func StartTUI(planName string, initialTask string, plansDir string, workspace string, client planner.LLMClient) error {
 	// Context for planning
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	askingForTask := false
+	var state uiState
+	var plans []string
+	var err error
 
-	// Try loading existing state
-	loaded := p.Load() == nil && p.Root != nil
+	if planName == "" {
+		plans, err = planner.ListPlans(plansDir)
+		if err != nil {
+			return err
+		}
 
-	if task != "" {
-		if !loaded || p.Root.Task != task {
-			go p.Start(ctx, task)
+		if initialTask != "" {
+			state = stateGeneratingPlanName
+		} else if len(plans) > 0 {
+			state = stateSelectPlan
 		} else {
-			go p.Plan(ctx, p.Root)
+			state = stateAskTask
 		}
 	} else {
-		if !loaded {
-			askingForTask = true
-		} else {
-			go p.Plan(ctx, p.Root)
+		// Plan name provided, we can attempt to load it immediately
+		state = statePlanning // startPlanning will change this if needed
+	}
+
+	m := initialModel(ctx, state, plansDir, plans, planName, initialTask, workspace, client)
+
+	// If we have a planName, try to load it right away
+	if planName != "" {
+		err := startPlanning(&m)
+		if err != nil {
+			return err
 		}
 	}
 
-	m := initialModel(p, askingForTask, ctx)
 	program := tea.NewProgram(m, tea.WithAltScreen())
-	_, err := program.Run()
+	_, err = program.Run()
 	return err
+}
+
+func startPlanning(m *model) error {
+	cfg := planner.Config{
+		PlansDir:  m.plansDir,
+		StateFile: filepath.Join(m.plansDir, fmt.Sprintf("%s.json", m.planName)),
+		Workspace: m.workspaceDir,
+	}
+
+	m.p = planner.NewPlanner(cfg, m.llmClient)
+
+	// Try loading existing state
+	loaded := m.p.Load() == nil && m.p.Root != nil
+
+	if m.initialTask != "" {
+		if !loaded || m.p.Root.Task != m.initialTask {
+			m.state = statePlanning
+			go m.p.Start(m.ctx, m.initialTask)
+		} else {
+			m.state = statePlanning
+			go m.p.Plan(m.ctx, m.p.Root)
+		}
+	} else {
+		if !loaded {
+			m.state = stateAskTask
+			m.textInput.SetValue("")
+			m.textInput.Placeholder = "What task do you want to plan?"
+			m.textInput.Focus()
+		} else {
+			m.state = statePlanning
+			go m.p.Plan(m.ctx, m.p.Root)
+		}
+	}
+
+	return nil
 }
 
 type promptMsg planner.UserPrompt
 
+type planNameGeneratedMsg struct {
+	name string
+	err  error
+	task string
+}
+
+func generatePlanNameCmd(ctx context.Context, client planner.LLMClient, task string) tea.Cmd {
+	return func() tea.Msg {
+		name, err := client.GeneratePlanName(ctx, task)
+		return planNameGeneratedMsg{name: name, err: err, task: task}
+	}
+}
+
 func listenForPrompt(p *planner.Planner) tea.Cmd {
 	return func() tea.Msg {
+		if p == nil {
+			// If p is nil, just wait a bit and re-dispatch or just return nil
+			// Actually, it's better not to start this cmd until p is initialized.
+			// Let's modify Init to not start this, or handle nil.
+			return nil
+		}
 		prompt := <-p.Prompts
 		return promptMsg(prompt)
 	}
@@ -122,7 +205,15 @@ func tickCmd() tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, tickCmd(), listenForPrompt(m.p), textinput.Blink)
+	var cmds []tea.Cmd
+	cmds = append(cmds, m.spinner.Tick, tickCmd(), textinput.Blink)
+	if m.p != nil {
+		cmds = append(cmds, listenForPrompt(m.p))
+	}
+	if m.state == stateGeneratingPlanName {
+		cmds = append(cmds, generatePlanNameCmd(m.ctx, m.llmClient, m.initialTask))
+	}
+	return tea.Batch(cmds...)
 }
 
 func flattenTree(n *planner.Node) []*planner.Node {
@@ -163,23 +254,94 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 
 	case tickMsg:
-		m.p.RLock()
-		m.nodes = flattenTree(m.p.Root)
-		m.p.RUnlock()
+		if m.p != nil {
+			m.p.RLock()
+			m.nodes = flattenTree(m.p.Root)
+			m.p.RUnlock()
+		}
 
 		// Let the spinner update as well so it doesn't freeze when tickCmd returns
 		var cmdSpinner tea.Cmd
 		m.spinner, cmdSpinner = m.spinner.Update(msg)
 		return m, tea.Batch(tickCmd(), cmdSpinner)
 
+	case planNameGeneratedMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			return m, tea.Quit
+		}
+
+		name := msg.name
+		// Ensure uniqueness
+		isUnique := false
+		for !isUnique {
+			isUnique = true
+			for _, p := range m.plans {
+				if p == name {
+					isUnique = false
+					break
+				}
+			}
+			if !isUnique {
+				// Append a random string or timestamp to make it unique
+				name = fmt.Sprintf("%s-%d", msg.name, time.Now().UnixNano()%10000)
+			}
+		}
+
+		m.planName = name
+		m.initialTask = msg.task
+		err := startPlanning(&m)
+		if err != nil {
+			m.err = err
+			return m, tea.Quit
+		}
+		return m, listenForPrompt(m.p)
+
 	case tea.KeyMsg:
-		// If we are currently asking for the root task
-		if m.askingForTask {
+		// Handle plan selection state
+		if m.state == stateSelectPlan {
+			switch msg.String() {
+			case "up", "k":
+				if m.planCursor > 0 {
+					m.planCursor--
+				}
+			case "down", "j":
+				if m.planCursor < len(m.plans) { // Allow +1 for "Create New Plan"
+					m.planCursor++
+				}
+			case "enter":
+				if m.planCursor < len(m.plans) {
+					m.planName = m.plans[m.planCursor]
+					err := startPlanning(&m)
+					if err != nil {
+						m.err = err
+						return m, tea.Quit
+					}
+					return m, listenForPrompt(m.p)
+				} else {
+					m.state = stateAskTask
+					m.planName = ""
+					m.textInput.SetValue("")
+					m.textInput.Placeholder = "What task do you want to plan?"
+					m.textInput.Focus()
+					return m, textinput.Blink
+				}
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
+		if m.state == stateAskTask {
 			switch msg.Type {
 			case tea.KeyEnter:
 				task := strings.TrimSpace(m.textInput.Value())
 				if task != "" {
-					m.askingForTask = false
+					if m.planName == "" {
+						m.state = stateGeneratingPlanName
+						return m, generatePlanNameCmd(m.ctx, m.llmClient, task)
+					}
+					m.state = statePlanning
 					m.textInput.Blur()
 					m.textInput.Placeholder = "Type your answer..."
 					go m.p.Start(m.ctx, task)
@@ -319,7 +481,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.p.RUnlock()
 
 				if len(m.nodes) == 0 {
-					m.askingForTask = true
+					m.state = stateAskTask
 					m.textInput.SetValue("")
 					m.textInput.Placeholder = "What task do you want to plan?"
 					m.textInput.Focus()
@@ -396,8 +558,46 @@ func (m model) View() string {
 
 	var b strings.Builder
 
-	if m.askingForTask {
-		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Enter the task you want to break down:")))
+	if m.state == stateSelectPlan {
+		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Select a plan or create a new one:")))
+		b.WriteString("\n\n")
+
+		for i, p := range m.plans {
+			cursor := "  "
+			if m.planCursor == i {
+				cursor = "> "
+			}
+			line := fmt.Sprintf("%s%s", cursor, p)
+			if m.planCursor == i {
+				b.WriteString(selectedStyle.Render(line) + "\n")
+			} else {
+				b.WriteString(line + "\n")
+			}
+		}
+
+		cursor := "  "
+		if m.planCursor == len(m.plans) {
+			cursor = "> "
+		}
+		createLine := fmt.Sprintf("%s[Create New Plan]", cursor)
+		if m.planCursor == len(m.plans) {
+			b.WriteString(selectedStyle.Render(createLine) + "\n")
+		} else {
+			b.WriteString(createLine + "\n")
+		}
+
+		b.WriteString("\n(Press Enter to select, j/k to navigate)")
+		return b.String()
+	}
+
+	if m.state == stateAskTask {
+		var promptStr string
+		if m.planName == "" {
+			promptStr = "Enter the task you want to break down:"
+		} else {
+			promptStr = fmt.Sprintf("Plan: %s - Enter the task you want to break down:", m.planName)
+		}
+		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render(promptStr)))
 		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
 		b.WriteString("\n\n(Press Enter to submit)")
@@ -495,7 +695,7 @@ func (m model) View() string {
 	mainContent := b.String()
 
 	// Build the status bar
-	statusText := " Commands: [j/k] nav | [e] edit | [d] del | [R] replan | [+] child | [[] before | []] after | [q] quit "
+	statusText := " Commands: j/k nav | e edit | d del | R replan | + child | [ before | ] after | q quit "
 	statusBar := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("253")). // Bright light gray/white text
 		Background(lipgloss.Color("235")). // Slightly lighter dark gray background
