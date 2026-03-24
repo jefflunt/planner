@@ -10,13 +10,15 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"planner/pkg/config"
 	"planner/pkg/llm"
 	"planner/pkg/planner"
 )
 
 var (
-	stateFile string
-	workspace string
+	stateFile  string
+	workspace  string
+	configFile string
 )
 
 func main() {
@@ -25,6 +27,7 @@ func main() {
 		Short: "A recursive agentic task orchestrator (CLI)",
 	}
 
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "planner.yaml", "Path to configuration file")
 	rootCmd.PersistentFlags().StringVar(&stateFile, "state", "planner-state.json", "Path to save planner state")
 	rootCmd.PersistentFlags().StringVar(&workspace, "workspace", "./workspace", "Workspace directory")
 
@@ -33,20 +36,31 @@ func main() {
 		Short: "Start planning a task",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := planner.Config{
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			// Load or create default configuration
+			cfg, err := config.LoadConfig(configFile)
+			if err != nil {
+				return fmt.Errorf("config error: %w", err)
+			}
+
+			plannerCfg := planner.Config{
 				StateFile: stateFile,
 				Workspace: workspace,
 			}
 
-			// For now, use a mock LLM.
-			client := &llm.MockClient{MaxSubtasks: 3}
-			p := planner.NewPlanner(cfg, client)
+			// Instantiate the LLM based on the loaded config
+			client, err := llm.NewClient(ctx, cfg)
+			if err != nil {
+				return fmt.Errorf("failed to initialize LLM client: %w", err)
+			}
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			p := planner.NewPlanner(plannerCfg, client)
 
 			task := args[0]
 			fmt.Printf("Starting CLI planning for: %q\n", task)
+			fmt.Printf("Using LLM Provider: %s (%s)\n", cfg.LLM.Provider, cfg.LLM.Model)
 
 			// Start planning in a goroutine so we can handle prompts on the main thread
 			errChan := make(chan error, 1)
@@ -81,8 +95,8 @@ func main() {
 		Use:   "list",
 		Short: "List tasks from the current plan state",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := planner.Config{StateFile: stateFile}
-			p := planner.NewPlanner(cfg, nil)
+			plannerCfg := planner.Config{StateFile: stateFile}
+			p := planner.NewPlanner(plannerCfg, nil)
 			if err := p.Load(); err != nil {
 				return err
 			}

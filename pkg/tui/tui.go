@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"planner/pkg/llm"
 	"planner/pkg/planner"
 )
 
@@ -57,13 +56,12 @@ func initialModel(p *planner.Planner, askingForTask bool, ctx context.Context) m
 	}
 }
 
-func StartTUI(task string, stateFile string, workspace string) error {
+func StartTUI(task string, stateFile string, workspace string, client planner.LLMClient) error {
 	cfg := planner.Config{
 		StateFile: stateFile,
 		Workspace: workspace,
 	}
 
-	client := &llm.MockClient{MaxSubtasks: 3}
 	p := planner.NewPlanner(cfg, client)
 
 	// Context for planning
