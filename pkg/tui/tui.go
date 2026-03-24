@@ -33,18 +33,27 @@ type model struct {
 	// Prompt handling
 	currentPrompt *planner.UserPrompt
 	textInput     textinput.Model
+	askingForTask bool
+	ctx           context.Context
 }
 
-func initialModel(p *planner.Planner) model {
+func initialModel(p *planner.Planner, askingForTask bool, ctx context.Context) model {
 	ti := textinput.New()
-	ti.Placeholder = "Type your answer..."
 	ti.Focus()
-	ti.CharLimit = 256
-	ti.Width = 50
+	ti.CharLimit = 1024
+	ti.Width = 60
+
+	if askingForTask {
+		ti.Placeholder = "What task do you want to plan?"
+	} else {
+		ti.Placeholder = "Type your answer..."
+	}
 
 	return model{
-		p:         p,
-		textInput: ti,
+		p:             p,
+		textInput:     ti,
+		askingForTask: askingForTask,
+		ctx:           ctx,
 	}
 }
 
@@ -61,11 +70,22 @@ func StartTUI(task string, stateFile string, workspace string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := p.Load(); err != nil || p.Root == nil || p.Root.Task != task {
-		go p.Start(ctx, task)
+	askingForTask := false
+
+	// Try loading existing state
+	loaded := p.Load() == nil && p.Root != nil
+
+	if task != "" {
+		if !loaded || p.Root.Task != task {
+			go p.Start(ctx, task)
+		}
+	} else {
+		if !loaded {
+			askingForTask = true
+		}
 	}
 
-	m := initialModel(p)
+	m := initialModel(p, askingForTask, ctx)
 	program := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := program.Run()
 	return err
@@ -123,6 +143,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd()
 
 	case tea.KeyMsg:
+		// If we are currently asking for the root task
+		if m.askingForTask {
+			switch msg.Type {
+			case tea.KeyEnter:
+				task := strings.TrimSpace(m.textInput.Value())
+				if task != "" {
+					m.askingForTask = false
+					m.textInput.Blur()
+					m.textInput.Placeholder = "Type your answer..."
+					go m.p.Start(m.ctx, task)
+				}
+				return m, nil
+			case tea.KeyCtrlC, tea.KeyEsc:
+				return m, tea.Quit
+			}
+
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
 		// If we are currently answering a prompt
 		if m.currentPrompt != nil {
 			switch msg.Type {
@@ -162,11 +202,23 @@ func (m model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v", m.err)
 	}
+
+	var b strings.Builder
+
+	if m.askingForTask {
+		b.WriteString(titleStyle.Render(" Planner "))
+		b.WriteString("\n\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Enter the task you want to break down:"))
+		b.WriteString("\n\n")
+		b.WriteString(m.textInput.View())
+		b.WriteString("\n\n(Press Enter to submit)")
+		return b.String()
+	}
+
 	if len(m.nodes) == 0 {
 		return "Initializing plan..."
 	}
 
-	var b strings.Builder
 	b.WriteString(titleStyle.Render(fmt.Sprintf(" Planner: %s ", m.p.Root.Task)))
 	b.WriteString("\n\n")
 

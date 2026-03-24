@@ -2,63 +2,36 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"io"
+	"os"
+	"strings"
 
-	"github.com/spf13/cobra"
-
-	"planner/pkg/planner"
 	"planner/pkg/tui"
 )
 
-var (
-	stateFile string
-	workspace string
-)
-
 func main() {
-	var rootCmd = &cobra.Command{
-		Use:   "plan-tui [task]",
-		Short: "A recursive agentic task orchestrator (TUI)",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// We launch the TUI
-			return tui.StartTUI(args[0], stateFile, workspace)
-		},
+	// Default configuration
+	stateFile := "planner-state.json"
+	workspace := "./workspace"
+
+	var initialTask string
+
+	// Check if data is piped to STDIN
+	stat, err := os.Stdin.Stat()
+	if err == nil && (stat.Mode()&os.ModeCharDevice) == 0 {
+		// Read from STDIN
+		data, err := io.ReadAll(os.Stdin)
+		if err == nil {
+			initialTask = strings.TrimSpace(string(data))
+		}
+	} else if len(os.Args) > 1 {
+		// Optionally allow passing the task as arguments
+		initialTask = strings.Join(os.Args[1:], " ")
 	}
 
-	rootCmd.PersistentFlags().StringVar(&stateFile, "state", "planner-state.json", "Path to save planner state")
-	rootCmd.PersistentFlags().StringVar(&workspace, "workspace", "./workspace", "Workspace directory")
-
-	var listCmd = &cobra.Command{
-		Use:   "list",
-		Short: "List tasks from the current plan state",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := planner.Config{StateFile: stateFile}
-			p := planner.NewPlanner(cfg, nil)
-			if err := p.Load(); err != nil {
-				return err
-			}
-
-			if p.Root == nil {
-				fmt.Println("No active plan.")
-				return nil
-			}
-
-			printTree(p.Root, "")
-			return nil
-		},
-	}
-
-	rootCmd.AddCommand(listCmd)
-
-	if err := rootCmd.Execute(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func printTree(node *planner.Node, prefix string) {
-	fmt.Printf("%s[%s] %s (%s) %s\n", prefix, node.Type, node.Task, node.Status, node.ID)
-	for _, child := range node.Children {
-		printTree(child, prefix+"  ")
+	// Launch the TUI
+	if err := tui.StartTUI(initialTask, stateFile, workspace); err != nil {
+		fmt.Printf("Error starting TUI: %v\n", err)
+		os.Exit(1)
 	}
 }
