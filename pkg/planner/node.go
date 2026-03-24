@@ -46,10 +46,11 @@ const (
 
 // LLMResponse is the structured output from the LLM analysis.
 type LLMResponse struct {
-	Action    PlanAction `json:"action"`
-	Subtasks  []string   `json:"subtasks,omitempty"`  // Populated if Action == Decompose
-	Question  string     `json:"question,omitempty"`  // Populated if Action == AskUser
-	Reasoning string     `json:"reasoning,omitempty"` // Why the LLM made this choice
+	Action        PlanAction `json:"action"`
+	Subtasks      []string   `json:"subtasks,omitempty"`       // Populated if Action == Decompose
+	Question      string     `json:"question,omitempty"`       // Populated if Action == AskUser
+	Reasoning     string     `json:"reasoning,omitempty"`      // Why the LLM made this choice
+	RewrittenTask string     `json:"rewritten_task,omitempty"` // If the task contains clarification, this is the rewritten version
 }
 
 // LLMClient represents an abstract interface for the LLM to classify and decompose tasks.

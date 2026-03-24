@@ -74,13 +74,15 @@ Respond with a JSON object containing:
 2. "reasoning": A brief explanation of why you chose this action.
 3. "subtasks": If action is "decompose", provide a JSON array of strings, where each string is a smaller, more specific subtask.
 4. "question": If action is "ask_user", provide the clarification question you want to ask the user.
+5. "rewritten_task": If the task contains appended clarifications from the user (e.g. "[Clarification]: ..."), rewrite the entire task to incorporate the clarification into a single coherent task description, and provide it here. Otherwise, you can omit this field.
 
 JSON Format:
 {
   "action": "...",
   "reasoning": "...",
   "subtasks": [...],
-  "question": "..."
+  "question": "...",
+  "rewritten_task": "..."
 }`, visionRule, task)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))

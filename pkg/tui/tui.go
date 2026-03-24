@@ -158,8 +158,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 
 	case tickMsg:
-		m.p.Load() // Reload state from disk to catch async updates
+		m.p.RLock()
 		m.nodes = flattenTree(m.p.Root)
+		m.p.RUnlock()
 
 		// Let the spinner update as well so it doesn't freeze when tickCmd returns
 		var cmdSpinner tea.Cmd
@@ -308,8 +309,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				node := m.nodes[m.cursorIndex]
 				m.p.DeleteNode(node.ID)
 
-				m.p.Load() // Force quick reload of state
+				m.p.RLock()
 				m.nodes = flattenTree(m.p.Root)
+				m.p.RUnlock()
 
 				if len(m.nodes) == 0 {
 					m.askingForTask = true

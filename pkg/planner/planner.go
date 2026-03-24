@@ -43,6 +43,14 @@ func NewPlanner(cfg Config, llm LLMClient) *Planner {
 	}
 }
 
+func (p *Planner) RLock() {
+	p.mu.RLock()
+}
+
+func (p *Planner) RUnlock() {
+	p.mu.RUnlock()
+}
+
 // Load loads the planner state from disk
 func (p *Planner) Load() error {
 	p.mu.Lock()
@@ -284,6 +292,13 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			p.mu.Unlock()
 			p.Save()
 			return fmt.Errorf("failed to analyze task %q: %w", node.Task, err)
+		}
+
+		if resp.RewrittenTask != "" && resp.RewrittenTask != node.Task {
+			p.mu.Lock()
+			node.Task = resp.RewrittenTask
+			p.mu.Unlock()
+			p.Save()
 		}
 
 		switch resp.Action {
