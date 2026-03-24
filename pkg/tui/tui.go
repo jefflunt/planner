@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"planner/pkg/config"
 	"planner/pkg/planner"
 )
 
@@ -41,7 +42,7 @@ type model struct {
 	height      int
 
 	state        uiState
-	plansDir     string
+	cfg          *config.Config
 	plans        []string
 	planCursor   int
 	planName     string
@@ -63,7 +64,7 @@ type model struct {
 	spinner spinner.Model
 }
 
-func initialModel(ctx context.Context, state uiState, plansDir string, plans []string, planName string, initialTask string, workspace string, client planner.LLMClient) model {
+func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans []string, planName string, initialTask string, workspace string, client planner.LLMClient) model {
 	ti := textinput.New()
 	ti.Focus()
 	ti.CharLimit = 1024
@@ -81,7 +82,7 @@ func initialModel(ctx context.Context, state uiState, plansDir string, plans []s
 
 	return model{
 		state:        state,
-		plansDir:     plansDir,
+		cfg:          cfg,
 		plans:        plans,
 		planName:     planName,
 		initialTask:  initialTask,
@@ -93,7 +94,7 @@ func initialModel(ctx context.Context, state uiState, plansDir string, plans []s
 	}
 }
 
-func StartTUI(planName string, initialTask string, plansDir string, workspace string, client planner.LLMClient) error {
+func StartTUI(planName string, initialTask string, cfg *config.Config, workspace string, client planner.LLMClient) error {
 	// Context for planning
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -101,6 +102,7 @@ func StartTUI(planName string, initialTask string, plansDir string, workspace st
 	var state uiState
 	var plans []string
 	var err error
+	plansDir := cfg.PlansDir
 
 	if planName == "" {
 		plans, err = planner.ListPlans(plansDir)
@@ -120,7 +122,7 @@ func StartTUI(planName string, initialTask string, plansDir string, workspace st
 		state = statePlanning // startPlanning will change this if needed
 	}
 
-	m := initialModel(ctx, state, plansDir, plans, planName, initialTask, workspace, client)
+	m := initialModel(ctx, state, cfg, plans, planName, initialTask, workspace, client)
 
 	// If we have a planName, try to load it right away
 	if planName != "" {
@@ -145,9 +147,11 @@ func StartTUI(planName string, initialTask string, plansDir string, workspace st
 
 func startPlanning(m *model) error {
 	cfg := planner.Config{
-		PlansDir:  m.plansDir,
-		StateFile: filepath.Join(m.plansDir, fmt.Sprintf("%s.json", m.planName)),
-		Workspace: m.workspaceDir,
+		PlansDir:       m.cfg.PlansDir,
+		StateFile:      filepath.Join(m.cfg.PlansDir, fmt.Sprintf("%s.json", m.planName)),
+		Workspace:      m.workspaceDir,
+		MaxConcurrency: m.cfg.MaxConcurrency,
+		MaxRetries:     m.cfg.MaxRetries,
 	}
 
 	m.p = planner.NewPlanner(cfg, m.llmClient)

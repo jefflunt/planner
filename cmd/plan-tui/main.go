@@ -77,7 +77,7 @@ func main() {
 	}
 
 	// Launch the TUI
-	if err := tui.StartTUI(planName, initialTask, plansDir, workspace, client); err != nil {
+	if err := tui.StartTUI(planName, initialTask, cfg, workspace, client); err != nil {
 		fmt.Printf("Error starting TUI: %v\n", err)
 		os.Exit(1)
 	}

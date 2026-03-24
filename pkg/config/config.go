@@ -16,6 +16,8 @@ type Config struct {
 		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview" (for gemini) or "gpt-4o" (for copilot)
 		APIKey   string `yaml:"api_key"`  // Required for gemini; ignored by copilot
 	} `yaml:"llm"`
+	MaxConcurrency int `yaml:"max_concurrency"`
+	MaxRetries     int `yaml:"max_retries"`
 }
 
 // DefaultPath returns the default location for the config file: ~/.planner/config.yml

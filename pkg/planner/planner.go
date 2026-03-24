@@ -16,11 +16,11 @@ import (
 
 // Config represents the planner configuration
 type Config struct {
-	PlansDir          string
-	StateFile         string
-	Workspace         string // Directory to hold workspaces
-	MaxLLMConcurrency int
-	MaxRetries        int
+	PlansDir       string
+	StateFile      string
+	Workspace      string // Directory to hold workspaces
+	MaxConcurrency int
+	MaxRetries     int
 }
 
 // ListPlans returns a list of available plan files in the PlansDir, without the .json extension.
@@ -65,8 +65,8 @@ type Planner struct {
 
 // NewPlanner creates a new planner instance
 func NewPlanner(cfg Config, llm LLMClient) *Planner {
-	if cfg.MaxLLMConcurrency == 0 {
-		cfg.MaxLLMConcurrency = 4
+	if cfg.MaxConcurrency == 0 {
+		cfg.MaxConcurrency = 4
 	}
 	if cfg.MaxRetries == 0 {
 		cfg.MaxRetries = 3
@@ -76,7 +76,7 @@ func NewPlanner(cfg Config, llm LLMClient) *Planner {
 		Config:       cfg,
 		LLM:          llm,
 		Prompts:      make(chan UserPrompt),
-		llmSemaphore: make(chan struct{}, cfg.MaxLLMConcurrency),
+		llmSemaphore: make(chan struct{}, cfg.MaxConcurrency),
 	}
 }
 
