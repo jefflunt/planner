@@ -32,6 +32,7 @@ type model struct {
 
 	// Prompt handling
 	currentPrompt *planner.UserPrompt
+	editingNode   *planner.Node
 	textInput     textinput.Model
 	askingForTask bool
 	ctx           context.Context
@@ -201,6 +202,33 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+		// If we are currently editing a node
+		if m.editingNode != nil {
+			switch msg.Type {
+			case tea.KeyEnter:
+				newTask := strings.TrimSpace(m.textInput.Value())
+				if newTask != "" {
+					node, err := m.p.EditNode(m.editingNode.ID, newTask)
+					if err == nil {
+						// Re-run planning on the edited node
+						go m.p.Plan(m.ctx, node)
+					}
+				}
+				m.editingNode = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyEsc:
+				m.editingNode = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyCtrlC:
+				return m, tea.Quit
+			}
+
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
 		// Navigation mode
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -212,6 +240,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "down", "j":
 			if m.cursorIndex < len(m.nodes)-1 {
 				m.cursorIndex++
+			}
+		case "e":
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+				m.editingNode = m.nodes[m.cursorIndex]
+				m.textInput.SetValue(m.editingNode.Task)
+				m.textInput.Placeholder = "Edit task..."
+				m.textInput.Focus()
+				return m, textinput.Blink
+			}
+		case "d":
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+				node := m.nodes[m.cursorIndex]
+				m.p.DeleteNode(node.ID)
+
+				m.p.Load() // Force quick reload of state
+				m.nodes = flattenTree(m.p.Root)
+
+				if len(m.nodes) == 0 {
+					m.askingForTask = true
+					m.textInput.SetValue("")
+					m.textInput.Placeholder = "What task do you want to plan?"
+					m.textInput.Focus()
+					return m, textinput.Blink
+				}
+
+				if m.cursorIndex >= len(m.nodes) {
+					m.cursorIndex = len(m.nodes) - 1
+				}
+				if m.cursorIndex < 0 {
+					m.cursorIndex = 0
+				}
+				return m, nil
 			}
 		}
 	}
@@ -307,8 +367,14 @@ func (m model) View() string {
 		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
 		b.WriteString("\n\n(Press Enter to submit)")
+	} else if m.editingNode != nil {
+		b.WriteString("\n\n" + strings.Repeat("─", termWidth/2) + "\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Editing Task: "))
+		b.WriteString("\n\n")
+		b.WriteString(m.textInput.View())
+		b.WriteString("\n\n(Press Enter to save and re-plan | Esc to cancel)")
 	} else {
-		b.WriteString("\n\nCommands: [j/k] navigate | [q] quit")
+		b.WriteString("\n\nCommands: [j/k] navigate | [e] edit | [d] delete | [q] quit")
 	}
 
 	return b.String()

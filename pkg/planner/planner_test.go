@@ -194,3 +194,82 @@ func TestPlannerPlanAskUser(t *testing.T) {
 		t.Errorf("Expected status to be actionable, got %s", p.Root.Status)
 	}
 }
+
+func TestPlannerDeleteNode(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+
+	p := NewPlanner(cfg, &simpleMockClient{})
+	p.Root = &Node{
+		ID:   "root",
+		Task: "Root",
+		Children: []*Node{
+			{ID: "child-1", Task: "Child 1"},
+			{ID: "child-2", Task: "Child 2"},
+		},
+	}
+
+	// Delete a child
+	if err := p.DeleteNode("child-1"); err != nil {
+		t.Fatalf("Failed to delete node: %v", err)
+	}
+
+	if len(p.Root.Children) != 1 || p.Root.Children[0].ID != "child-2" {
+		t.Fatalf("Expected 1 child 'child-2', got %v", p.Root.Children)
+	}
+
+	// Delete root
+	if err := p.DeleteNode("root"); err != nil {
+		t.Fatalf("Failed to delete root: %v", err)
+	}
+
+	if p.Root != nil {
+		t.Fatalf("Expected root to be nil, got %v", p.Root)
+	}
+}
+
+func TestPlannerEditNode(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+
+	p := NewPlanner(cfg, &simpleMockClient{})
+	p.Root = &Node{
+		ID:     "root",
+		Task:   "Root",
+		Status: StatusActionable,
+		Type:   TaskTypeAtomic,
+		Children: []*Node{
+			{ID: "child-1", Task: "Child 1"},
+		},
+	}
+
+	node, err := p.EditNode("root", "New Root")
+	if err != nil {
+		t.Fatalf("Failed to edit node: %v", err)
+	}
+
+	if node.Task != "New Root" {
+		t.Errorf("Expected task to be 'New Root', got %q", node.Task)
+	}
+	if node.Status != StatusPending {
+		t.Errorf("Expected status to be StatusPending, got %s", node.Status)
+	}
+	if node.Type != "" {
+		t.Errorf("Expected type to be empty, got %s", node.Type)
+	}
+	if len(node.Children) != 0 {
+		t.Errorf("Expected 0 children, got %d", len(node.Children))
+	}
+}

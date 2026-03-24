@@ -63,7 +63,10 @@ func (p *Planner) Load() error {
 func (p *Planner) Save() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	return p.saveUnlocked()
+}
 
+func (p *Planner) saveUnlocked() error {
 	dir := filepath.Dir(p.Config.StateFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create state dir: %w", err)
@@ -93,6 +96,80 @@ func (p *Planner) Start(ctx context.Context, task string) error {
 	}
 
 	return p.Plan(ctx, p.Root)
+}
+
+// EditNode updates a node's task string, clears its children, and resets its status.
+func (p *Planner) EditNode(id string, newTask string) (*Node, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.Root == nil {
+		return nil, fmt.Errorf("no active plan")
+	}
+
+	node := p.Root.Find(id)
+	if node == nil {
+		return nil, fmt.Errorf("node not found")
+	}
+
+	node.Task = newTask
+	node.Status = StatusPending
+	node.Type = ""
+	node.Children = nil
+
+	if err := p.saveUnlocked(); err != nil {
+		return nil, err
+	}
+
+	return node, nil
+}
+
+// DeleteNode removes a node and all its children from the tree.
+func (p *Planner) DeleteNode(id string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.Root == nil {
+		return nil
+	}
+
+	if p.Root.ID == id {
+		p.Root = nil
+		return p.saveUnlocked() // Call save unlocked to prevent deadlock
+	}
+
+	parent := p.findParent(p.Root, id)
+	if parent != nil {
+		for i, child := range parent.Children {
+			if child.ID == id {
+				parent.Children = append(parent.Children[:i], parent.Children[i+1:]...)
+				break
+			}
+		}
+	}
+	return p.saveUnlocked()
+}
+
+func (p *Planner) findParent(current *Node, childID string) *Node {
+	for _, child := range current.Children {
+		if child.ID == childID {
+			return current
+		}
+		if found := p.findParent(child, childID); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+// Find finds a node by its ID
+func (p *Planner) Find(id string) *Node {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.Root == nil {
+		return nil
+	}
+	return p.Root.Find(id)
 }
 
 // Plan recursively decomposes a node, polling the LLM and user until Actionable
@@ -203,14 +280,4 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			// The loop will continue, passing the augmented task back to the LLM
 		}
 	}
-}
-
-// Find finds a node by its ID
-func (p *Planner) Find(id string) *Node {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if p.Root == nil {
-		return nil
-	}
-	return p.Root.Find(id)
 }
