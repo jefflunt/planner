@@ -25,7 +25,7 @@ echo "Building version: ${version}"
 mkdir -p bin
 
 # Build all binaries
-for cmd in cmd/plan-cli cmd/plan-tui; do
+for cmd in cmd/plan-tui; do
     name=$(basename "$cmd")
     echo "Building ${name}..."
     go build -ldflags "-X planner/pkg/version.Version=${version}" -o "bin/${name}" "./$cmd"

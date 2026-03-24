@@ -22,7 +22,7 @@ echo "Installing version: ${version}"
 
 # Install using standard go install, injecting the version flag
 # This will place the binaries into $(go env GOPATH)/bin
-for cmd in cmd/plan-cli cmd/plan-tui; do
+for cmd in cmd/plan-tui; do
     name=$(basename "$cmd")
     echo "Installing ${name} to $(go env GOPATH)/bin..."
     go install -ldflags "-X planner/pkg/version.Version=${version}" "./$cmd"

@@ -22,23 +22,17 @@ llm:
   api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY env var
 ```
 
-## CLI Flags
+## CLI Behavior
 
-`plan-cli` exposes persistent flags through Cobra for configuration:
+`plan-tui` currently handles a few paths implicitly. It does not use standard CLI flags at the moment, but loads configuration like so:
 
-1. `--config`
-   - **Type:** String
+1. **Config Path**
    - **Default:** `~/.planner/config.yml`
-   - **Usage:** Specifies an alternate configuration file to load.
 
-2. `--state`
-   - **Type:** String
+2. **State Path**
    - **Default:** `planner-state.json` (in the current directory)
    - **Usage:** Changes where the JSON persistence file is stored and loaded from. Crucial if you are running multiple independent plans in the same directory.
-   - Example: `--state=my-plan.json`
 
-2. `--workspace`
-   - **Type:** String
+3. **Workspace**
    - **Default:** `./workspace`
    - **Usage:** Specifies the directory meant to hold the execution artifacts. *(Note: This was originally used in the `fractals` execution framework, but remains here as part of the domain terminology in case the generated plan references it).*
-   - Example: `--workspace=/tmp/isolated-work`

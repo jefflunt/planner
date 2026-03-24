@@ -28,12 +28,11 @@ A node represents a single task in the task tree.
   - `actionable` (analyzed, single file operation)
   - `needs_input` (waiting for user clarification)
 
-### TUI vs. CLI
+### TUI
 
-To provide maximum flexibility, the core planner is entirely decoupled from the user interface.
+The core planner is entirely decoupled from the user interface, but the primary consumer is the `plan-tui` binary.
 
-1. **`plan-cli`**: Uses standard Go `bufio.NewReader(os.Stdin)` to block and wait for user input when a `UserPrompt` is received on the channel. It prints the tree sequentially.
-2. **`plan-tui`**: Uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) to render an interactive application. It listens for `UserPrompt` messages asynchronously in its `Update` loop. When a prompt is received, it swaps the view to display a [Bubbles `textinput`](https://github.com/charmbracelet/bubbles/tree/master/textinput) component inline, capturing the user's answer and sending it back to the channel.
+**`plan-tui`**: Uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) to render an interactive application. It listens for `UserPrompt` messages asynchronously in its `Update` loop. When a prompt is received, it swaps the view to display a [Bubbles `textinput`](https://github.com/charmbracelet/bubbles/tree/master/textinput) component inline, capturing the user's answer and sending it back to the channel.
 
 ### State Persistence
 
