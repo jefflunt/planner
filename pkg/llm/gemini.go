@@ -44,15 +44,23 @@ func NewGeminiClient(ctx context.Context, cfg *config.Config) (*GeminiClient, er
 	}, nil
 }
 
-func (g *GeminiClient) AnalyzeTask(ctx context.Context, task string, isVision bool) (planner.LLMResponse, error) {
+func (g *GeminiClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest) (planner.LLMResponse, error) {
 	model := g.client.GenerativeModel(g.model)
 
 	// Force JSON output
 	model.ResponseMIMEType = "application/json"
 
 	visionRule := ""
-	if isVision {
+	if req.IsVision {
 		visionRule = "\n\nCRITICAL: This task is the 'Vision' or 'Root' description of the project. It MUST be decomposed into smaller actionable steps, even if it seems simple. NEVER mark a root vision as 'actionable'."
+	}
+
+	var ancestryStr string
+	if len(req.Ancestry) > 0 {
+		ancestryStr = "\n\nCONTEXT:\nYou are working on a subtask of a larger project. Use the following ancestry to infer the programming language, framework, design patterns, and file structure. DO NOT ask the user for clarifications on details that can be reasonably inferred from this context.\n\nAncestry (Top-down):\n"
+		for i, parent := range req.Ancestry {
+			ancestryStr += fmt.Sprintf("%d. %s\n", i+1, parent)
+		}
 	}
 
 	prompt := fmt.Sprintf(`You are an expert agentic task orchestrator. Your job is to analyze a task and decide whether it is actionable, requires decomposition, or needs clarification from the user.
@@ -62,7 +70,7 @@ A task is ONLY "actionable" if it describes the creation, deletion, or editing o
 - Example: "Refactor the authentication module" -> Not Actionable (Too vague, multiple files).
 - Example: "Rename AuthUser to SessionUser in src/auth/models.go" -> Actionable (Single file operation).
 
-If a task is too large or modifies multiple files (e.g. "Rename type X and all references"), you MUST decompose it into multiple actionable steps.%s
+If a task is too large or modifies multiple files (e.g. "Rename type X and all references"), you MUST decompose it into multiple actionable steps.%s%s
 
 Analyze this task:
 """
@@ -83,7 +91,7 @@ JSON Format:
   "subtasks": [...],
   "question": "...",
   "rewritten_task": "..."
-}`, visionRule, task)
+}`, visionRule, ancestryStr, req.Task)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {

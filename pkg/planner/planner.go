@@ -262,6 +262,23 @@ func (p *Planner) Find(id string) *Node {
 	return p.Root.Find(id)
 }
 
+// GetAncestry returns a list of parent tasks, from Root down to the immediate parent of the given node.
+func (p *Planner) GetAncestry(node *Node) []string {
+	var ancestry []string
+	current := node
+
+	for current != nil && current.ParentID != "" {
+		parent := p.Find(current.ParentID)
+		if parent == nil {
+			break
+		}
+		// Prepend
+		ancestry = append([]string{parent.Task}, ancestry...)
+		current = parent
+	}
+	return ancestry
+}
+
 // Plan recursively decomposes a node, polling the LLM and user until Actionable
 func (p *Planner) Plan(ctx context.Context, node *Node) error {
 	p.mu.RLock()
@@ -284,8 +301,16 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 	}
 
 	for {
+		ancestry := p.GetAncestry(node)
+
+		req := LLMRequest{
+			Task:     node.Task,
+			Ancestry: ancestry,
+			IsVision: isRoot,
+		}
+
 		// Ask LLM what to do
-		resp, err := p.LLM.AnalyzeTask(ctx, node.Task, isRoot)
+		resp, err := p.LLM.AnalyzeTask(ctx, req)
 		if err != nil {
 			p.mu.Lock()
 			node.Status = StatusError

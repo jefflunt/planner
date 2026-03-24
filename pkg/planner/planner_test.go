@@ -14,11 +14,11 @@ type simpleMockClient struct {
 	responses map[string]LLMResponse
 }
 
-func (m *simpleMockClient) AnalyzeTask(ctx context.Context, task string, isVision bool) (LLMResponse, error) {
-	if resp, ok := m.responses[task]; ok {
+func (m *simpleMockClient) AnalyzeTask(ctx context.Context, req LLMRequest) (LLMResponse, error) {
+	if resp, ok := m.responses[req.Task]; ok {
 		return resp, nil
 	}
-	return LLMResponse{}, fmt.Errorf("unexpected task: %s", task)
+	return LLMResponse{}, fmt.Errorf("unexpected task: %s", req.Task)
 }
 
 func TestPlannerPersistence(t *testing.T) {

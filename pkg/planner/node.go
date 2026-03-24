@@ -53,12 +53,18 @@ type LLMResponse struct {
 	RewrittenTask string     `json:"rewritten_task,omitempty"` // If the task contains clarification, this is the rewritten version
 }
 
+// LLMRequest contains the task to analyze and its context within the project tree.
+type LLMRequest struct {
+	Task     string
+	Ancestry []string // The chain of parent tasks, from Root down to the immediate parent
+	IsVision bool     // True if this is the root vision of the project
+}
+
 // LLMClient represents an abstract interface for the LLM to classify and decompose tasks.
 type LLMClient interface {
 	// AnalyzeTask evaluates a task to determine if it's actionable (single file operation),
 	// if it needs decomposition, or if it requires user clarification.
-	// If isVision is true, the LLM will treat the task as a high-level project vision that MUST be decomposed.
-	AnalyzeTask(ctx context.Context, task string, isVision bool) (LLMResponse, error)
+	AnalyzeTask(ctx context.Context, req LLMRequest) (LLMResponse, error)
 }
 
 // IsLeaf returns true if the node is atomic and has no children.
