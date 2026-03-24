@@ -55,9 +55,10 @@ type LLMResponse struct {
 
 // LLMRequest contains the task to analyze and its context within the project tree.
 type LLMRequest struct {
-	Task     string
-	Ancestry []string // The chain of parent tasks, from Root down to the immediate parent
-	IsVision bool     // True if this is the root vision of the project
+	Task           string
+	Ancestry       []string // The chain of parent tasks, from Root down to the immediate parent
+	IsVision       bool     // True if this is the root vision of the project
+	FileSystemTree string   // List of files in the current working directory to provide codebase context
 }
 
 // LLMClient represents an abstract interface for the LLM to classify and decompose tasks.

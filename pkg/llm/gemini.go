@@ -63,6 +63,11 @@ func (g *GeminiClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest) 
 		}
 	}
 
+	var fsStr string
+	if req.FileSystemTree != "" {
+		fsStr = fmt.Sprintf("\n\nFILE SYSTEM CONTEXT:\nYou are operating within an existing codebase. Here is the current file structure of the project:\n%s\n\nUse this to understand existing files, directories, and naming conventions. DO NOT ask the user for file paths or project structure if it can be inferred from this tree.", req.FileSystemTree)
+	}
+
 	prompt := fmt.Sprintf(`You are an expert agentic task orchestrator. Your job is to analyze a task and decide whether it is actionable, requires decomposition, or needs clarification from the user.
 
 CRITICAL RULE (Actionable Heuristic): 
@@ -70,7 +75,7 @@ A task is ONLY "actionable" if it describes the creation, deletion, or editing o
 - Example: "Refactor the authentication module" -> Not Actionable (Too vague, multiple files).
 - Example: "Rename AuthUser to SessionUser in src/auth/models.go" -> Actionable (Single file operation).
 
-If a task is too large or modifies multiple files (e.g. "Rename type X and all references"), you MUST decompose it into multiple actionable steps.%s%s
+If a task is too large or modifies multiple files (e.g. "Rename type X and all references"), you MUST decompose it into multiple actionable steps.%s%s%s
 
 Analyze this task:
 """
@@ -91,7 +96,7 @@ JSON Format:
   "subtasks": [...],
   "question": "...",
   "rewritten_task": "..."
-}`, visionRule, ancestryStr, req.Task)
+}`, visionRule, ancestryStr, fsStr, req.Task)
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {

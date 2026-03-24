@@ -300,6 +300,9 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 		return nil
 	}
 
+	pwd, _ := os.Getwd()
+	fsTree := GetFileSystemTree(pwd)
+
 	for {
 		p.mu.Lock()
 		node.Status = StatusPending
@@ -309,9 +312,10 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 		ancestry := p.GetAncestry(node)
 
 		req := LLMRequest{
-			Task:     node.Task,
-			Ancestry: ancestry,
-			IsVision: isRoot,
+			Task:           node.Task,
+			Ancestry:       ancestry,
+			IsVision:       isRoot,
+			FileSystemTree: fsTree,
 		}
 
 		// Ask LLM what to do
