@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
+	"planner/pkg/logger"
 )
 
 // Config represents the planner configuration
@@ -391,6 +392,7 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 					c.Status = StatusError
 					c.Task = "!" + c.Task
 					p.mu.Unlock()
+					_ = logger.Log(err)
 				}
 				return nil
 			})
@@ -422,6 +424,7 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			node.Status = StatusError
 			node.Task = "!" + node.Task
 			p.mu.Unlock()
+			_ = logger.Log(err)
 			return fmt.Errorf("failed to analyze task %q: %w", node.Task, err)
 		}
 
@@ -438,7 +441,6 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			node.Status = StatusActionable
 			p.mu.Unlock()
 			return nil // Branch terminates successfully
-
 		case ActionDecompose:
 			p.mu.Lock()
 			node.Type = TaskTypeComposite
@@ -468,6 +470,7 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 						c.Status = StatusError
 						c.Task = "!" + c.Task
 						p.mu.Unlock()
+						_ = logger.Log(err)
 					}
 					return nil
 				})
