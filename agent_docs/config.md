@@ -19,10 +19,21 @@ An example `config.yml` looks like:
 ```yaml
 plans_dir: "~/.planner/plans"
 llm:
-  provider: "gemini"
+  provider: "gemini" # Can be "gemini" or "copilot"
   model: "gemini-3.1-flash-lite-preview"
-  api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY env var
+  api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY env var (ignored for copilot)
 ```
+
+### LLM Providers
+
+**Gemini (`provider: "gemini"`)**
+- The default provider. Requires `api_key` to be set in the config file or via the `GEMINI_API_KEY` environment variable.
+- Configure `model` to pick a specific model (e.g. `gemini-3.1-flash-lite-preview`).
+
+**GitHub Copilot (`provider: "copilot"`)**
+- Requires the `copilot` command line interface to be installed and authenticated (`copilot auth`).
+- Does not require an `api_key` in the planner config since it relies on the CLI's existing session.
+- The `model` configuration is optional. If left blank, it uses the CLI's default model. You can specify a model like `gpt-4o` if the CLI supports it via the `--model` flag.
 
 ## CLI Behavior
 

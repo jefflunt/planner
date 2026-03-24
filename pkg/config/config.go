@@ -12,9 +12,9 @@ import (
 type Config struct {
 	PlansDir string `yaml:"plans_dir"`
 	LLM      struct {
-		Provider string `yaml:"provider"` // e.g., "gemini"
-		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview"
-		APIKey   string `yaml:"api_key"`  // Can be empty if using env var
+		Provider string `yaml:"provider"` // e.g., "gemini" or "copilot"
+		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview" (for gemini) or "gpt-4o" (for copilot)
+		APIKey   string `yaml:"api_key"`  // Required for gemini; ignored by copilot
 	} `yaml:"llm"`
 }
 
