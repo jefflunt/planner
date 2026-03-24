@@ -36,6 +36,6 @@ func LoadConfig(path string) (*Config, error) {
 func DefaultConfig() *Config {
 	cfg := &Config{}
 	cfg.LLM.Provider = "gemini"
-	cfg.LLM.Model = "gemini-1.5-flash"
+	cfg.LLM.Model = "gemini-3.1-flash-lite-preview"
 	return cfg
 }

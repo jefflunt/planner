@@ -35,7 +35,7 @@ func NewGeminiClient(ctx context.Context, cfg *config.Config) (*GeminiClient, er
 
 	model := cfg.LLM.Model
 	if model == "" {
-		model = "gemini-1.5-flash"
+		model = "gemini-3.1-flash-lite-preview"
 	}
 
 	return &GeminiClient{
