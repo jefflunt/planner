@@ -70,7 +70,7 @@ func getShortcuts(m model) []shortcut {
 	switch m.state {
 	case stateSelectPlan:
 		return []shortcut{
-			{"up/down", "nav"},
+			{"j/k", "nav"},
 			{"/", "search"},
 			{"enter", "select"},
 			{"D", "delete"},

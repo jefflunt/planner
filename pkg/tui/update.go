@@ -262,11 +262,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.searchQuery = ""
 				m.planCursor = 0
 				return m, nil
-			case "up", "k":
+			case "k":
 				if m.planCursor > 0 {
 					m.planCursor--
 				}
-			case "down", "j":
+			case "j":
 				filteredPlans := getFilteredPlans(&m)
 				if m.planCursor < len(filteredPlans) {
 					m.planCursor++
