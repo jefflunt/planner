@@ -165,12 +165,13 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 	}
 
 	if len(resp.Candidates) == 0 {
-		logger.LogMsg(fmt.Sprintf("gemini returned empty candidates: %+v", resp))
+		logger.LogMsg(fmt.Sprintf("gemini returned empty candidates: %+v, PromptFeedback: %+v", resp, resp.PromptFeedback))
 		return "", fmt.Errorf("gemini returned an empty response (no candidates)")
 	}
 
 	if len(resp.Candidates[0].Content.Parts) == 0 {
-		logger.LogMsg(fmt.Sprintf("gemini returned empty parts: %+v", resp))
+		candidate := resp.Candidates[0]
+		logger.LogMsg(fmt.Sprintf("gemini returned empty parts. Candidate: FinishReason=%v, SafetyRatings=%+v, Index=%v", candidate.FinishReason, candidate.SafetyRatings, candidate.Index))
 		return "", fmt.Errorf("gemini returned an empty response (no parts)")
 	}
 
