@@ -1,10 +1,12 @@
 package llm
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -14,6 +16,26 @@ import (
 	"planner/pkg/planner"
 	"planner/pkg/prompts"
 )
+
+// Tool declarations
+var runCommandTool = &genai.Tool{
+	FunctionDeclarations: []*genai.FunctionDeclaration{
+		{
+			Name:        "run_command",
+			Description: "Executes a shell command in the workspace.",
+			Parameters: &genai.Schema{
+				Type: genai.TypeObject,
+				Properties: map[string]*genai.Schema{
+					"command": {
+						Type:        genai.TypeString,
+						Description: "The shell command to run (e.g., 'ls -la', 'go test ./...').",
+					},
+				},
+				Required: []string{"command"},
+			},
+		},
+	},
+}
 
 type GeminiClient struct {
 	client *genai.Client
@@ -150,6 +172,7 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 	model := g.client.GenerativeModel(g.model)
 	// Force JSON output to improve stability, especially for complex prompts
 	model.ResponseMIMEType = "application/json"
+	model.Tools = []*genai.Tool{runCommandTool}
 
 	prompt, err := prompts.Load("execute_plan", map[string]string{
 		"PLAN": plan,
@@ -160,33 +183,65 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 
 	logger.LogMsg(fmt.Sprintf("gemini execution prompt: %s", prompt))
 
-	// DEBUG: Log the model configuration
-	logger.LogMsg(fmt.Sprintf("DEBUG: Model config: %+v", model))
-
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
+	chat := model.StartChat()
+	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
 	if err != nil {
-		// Log the error with more context
 		logger.LogMsg(fmt.Sprintf("gemini generation failed: %v", err))
 		return "", fmt.Errorf("gemini generation failed: %w", err)
 	}
 
-	// Log raw response object to inspect structure
-	logger.LogMsg(fmt.Sprintf("DEBUG: Raw response: %+v", resp))
-	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
-		logger.LogMsg(fmt.Sprintf("DEBUG: Raw Part 0: %+v", resp.Candidates[0].Content.Parts[0]))
+	// Simple loop to handle tool calls
+	for {
+		// Check for function calls
+		if len(resp.Candidates) > 0 && len(resp.Candidates[0].FunctionCalls()) > 0 {
+			for _, fc := range resp.Candidates[0].FunctionCalls() {
+				if fc.Name == "run_command" {
+					cmdStr, ok := fc.Args["command"].(string)
+					if !ok {
+						return "", fmt.Errorf("invalid command argument")
+					}
+
+					logger.LogMsg(fmt.Sprintf("DEBUG: Tool call: run_command %s", cmdStr))
+
+					// Execute the command
+					cmd := exec.Command("sh", "-c", cmdStr)
+					var out bytes.Buffer
+					cmd.Stdout = &out
+					cmd.Stderr = &out
+					err := cmd.Run()
+
+					output := out.String()
+					if err != nil {
+						output = fmt.Sprintf("Error: %v\nOutput: %s", err, output)
+					}
+
+					logger.LogMsg(fmt.Sprintf("DEBUG: Tool executed: %s, Result: %s", cmdStr, output))
+
+					toolResp := genai.FunctionResponse{
+						Name: "run_command",
+						Response: map[string]any{
+							"output": output,
+						},
+					}
+					resp, err = chat.SendMessage(ctx, toolResp)
+					if err != nil {
+						return "", err
+					}
+					continue
+				}
+			}
+		}
+		break
 	}
 
+	// Process final response
 	if len(resp.Candidates) == 0 {
-		logger.LogMsg(fmt.Sprintf("gemini returned empty candidates: %+v, PromptFeedback: %+v", resp, resp.PromptFeedback))
-		return "", fmt.Errorf("gemini returned an empty response (no candidates)")
+		return "", fmt.Errorf("gemini returned an empty response")
 	}
 
+	// Process final response
 	if len(resp.Candidates[0].Content.Parts) == 0 {
-		candidate := resp.Candidates[0]
-		// Log the entire response as JSON for debugging
-		respJSON, _ := json.Marshal(resp)
-		logger.LogMsg(fmt.Sprintf("gemini returned empty parts. Candidate: FinishReason=%v (%d), SafetyRatings=%+v, Index=%v. Full response: %s", candidate.FinishReason, int(candidate.FinishReason), candidate.SafetyRatings, candidate.Index, string(respJSON)))
-		return "", fmt.Errorf("gemini returned an empty response (no parts)")
+		return "", fmt.Errorf("gemini returned an empty response")
 	}
 
 	// Try to get as Text first
