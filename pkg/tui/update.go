@@ -205,6 +205,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if m.state == stateExecuting {
+			if msg.Type == tea.KeyEsc {
+				m.state = statePlanning
+				return m, nil
+			}
+			if msg.Type == tea.KeyCtrlC {
+				return m, tea.Quit
+			}
 			m.viewport, cmd = m.viewport.Update(msg)
 			return m, cmd
 		}
