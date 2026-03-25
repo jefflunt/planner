@@ -171,12 +171,9 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 	}
 
 	// Log raw response object to inspect structure
-	logger.LogMsg(fmt.Sprintf("DEBUG: Raw Candidates: %+v", resp.Candidates))
-	if len(resp.Candidates) > 0 {
-		logger.LogMsg(fmt.Sprintf("DEBUG: Candidate 0: %+v", resp.Candidates[0]))
-		if resp.Candidates[0].Content != nil {
-			logger.LogMsg(fmt.Sprintf("DEBUG: Candidate 0 Content: %+v", resp.Candidates[0].Content))
-		}
+	logger.LogMsg(fmt.Sprintf("DEBUG: Raw response: %+v", resp))
+	if len(resp.Candidates) > 0 && len(resp.Candidates[0].Content.Parts) > 0 {
+		logger.LogMsg(fmt.Sprintf("DEBUG: Raw Part 0: %+v", resp.Candidates[0].Content.Parts[0]))
 	}
 
 	if len(resp.Candidates) == 0 {
@@ -192,11 +189,23 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 		return "", fmt.Errorf("gemini returned an empty response (no parts)")
 	}
 
+	// Try to get as Text first
 	part := resp.Candidates[0].Content.Parts[0]
-	text, ok := part.(genai.Text)
-	if !ok {
-		return "", fmt.Errorf("expected text response from gemini, got %T", part)
+
+	// Convert part to string based on its actual type
+	var text string
+	if t, ok := part.(genai.Text); ok {
+		text = string(t)
+	} else {
+		// Attempt to JSON encode the part as a fallback for other types
+		b, err := json.Marshal(part)
+		if err == nil {
+			text = string(b)
+		} else {
+			logger.LogMsg(fmt.Sprintf("DEBUG: Unknown part type: %T, value: %+v", part, part))
+			return "", fmt.Errorf("expected genai.Text response from gemini, got %T", part)
+		}
 	}
 
-	return string(text), nil
+	return text, nil
 }
