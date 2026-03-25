@@ -170,8 +170,7 @@ func (c *GeminiClient) GeneratePlanName(ctx context.Context, task string) (strin
 
 func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
 	model := g.client.GenerativeModel(g.model)
-	// Force JSON output to improve stability, especially for complex prompts
-	model.ResponseMIMEType = "application/json"
+	// Tool calling is incompatible with forced JSON MIME type
 	model.Tools = []*genai.Tool{runCommandTool}
 
 	prompt, err := prompts.Load("execute_plan", map[string]string{
