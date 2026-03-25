@@ -9,11 +9,13 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"planner/pkg/config"
 	"planner/pkg/planner"
+	"planner/pkg/prompts"
 )
 
 var (
@@ -65,7 +67,10 @@ type model struct {
 	ctx                 context.Context
 
 	// Execution
-	executionOutput string
+	executionOutput  string
+	viewport         viewport.Model
+	executionPrompt  string
+	executionCommand string
 
 	// Spinner
 	spinner spinner.Model
@@ -174,6 +179,8 @@ func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans 
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	vp := viewport.New(0, 0)
+
 	return model{
 		state:        state,
 		cfg:          cfg,
@@ -185,6 +192,7 @@ func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans 
 		textInput:    ti,
 		ctx:          ctx,
 		spinner:      s,
+		viewport:     vp,
 		isSearching:  false,
 		searchQuery:  "",
 	}
@@ -363,6 +371,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.width > 4 {
 			m.textInput.Width = m.width - 4
 		}
+		m.viewport.Width = m.width
+		m.viewport.Height = m.height - 4 // Reserve space for status bar
 
 	case spinner.TickMsg:
 		var cmdSpinner tea.Cmd
@@ -425,9 +435,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.executionOutput = fmt.Sprintf("Error: %v", msg.err)
 		}
+		// Update viewport
+		content := fmt.Sprintf("Prompt:\n%s\n\nCommand:\n%s\n\nOutput:\n%s", m.executionPrompt, m.executionCommand, m.executionOutput)
+		m.viewport.SetContent(content)
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.state == stateExecuting {
+			m.viewport, cmd = m.viewport.Update(msg)
+			return m, cmd
+		}
+
 		// Handle selection logic for a plan
 		selectPlan := func(m *model) (tea.Model, tea.Cmd) {
 			filteredPlans := getFilteredPlans(m)
@@ -655,8 +673,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "x", "X":
 			if m.state == statePlanning {
 				m.state = stateExecuting
-				m.executionOutput = "Executing plan..."
 				plan := m.p.SerializePlan()
+
+				// Load prompt
+				prompt, err := prompts.Load("execute_plan", map[string]string{"PLAN": plan})
+				if err != nil {
+					m.executionOutput = fmt.Sprintf("Error loading prompt: %v", err)
+					return m, nil
+				}
+
+				m.executionPrompt = prompt
+				m.executionCommand = "opencode run <prompt>"
+				m.executionOutput = "Executing..."
+
+				// Initialize viewport with content
+				content := fmt.Sprintf("Prompt:\n%s\n\nCommand:\n%s\n\nOutput:\n%s", m.executionPrompt, m.executionCommand, m.executionOutput)
+				m.viewport.SetContent(content)
+
 				return m, func() tea.Msg {
 					output, err := m.llmClient.ExecutePlan(m.ctx, plan)
 					return executionFinishedMsg{output: output, err: err}
@@ -841,10 +874,10 @@ func (m model) View() string {
 	}
 
 	if m.state == stateExecuting {
-		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Execution Output:")))
-		b.WriteString("\n\n")
-		b.WriteString(wrapStyle.Render(m.executionOutput))
-		return wrapContentWithStatusBar(m, b.String())
+		// Re-render to update the viewport content
+		content := fmt.Sprintf("Prompt:\n%s\n\nCommand:\n%s\n\nOutput:\n%s", m.executionPrompt, m.executionCommand, m.executionOutput)
+		m.viewport.SetContent(content)
+		return wrapContentWithStatusBar(m, m.viewport.View())
 	}
 
 	var tasksBuilder strings.Builder
