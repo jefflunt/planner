@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func Log(err error) error {
+func LogMsg(msg string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
@@ -27,7 +27,7 @@ func Log(err error) error {
 	defer f.Close()
 
 	timestamp := time.Now().UTC().Format(time.RFC3339)
-	logMsg := fmt.Sprintf("%s: %v\n", timestamp, err)
+	logMsg := fmt.Sprintf("%s: %s\n", timestamp, msg)
 
 	_, err = f.WriteString(logMsg)
 	if err != nil {
@@ -35,4 +35,8 @@ func Log(err error) error {
 	}
 
 	return nil
+}
+
+func Log(err error) error {
+	return LogMsg(err.Error())
 }

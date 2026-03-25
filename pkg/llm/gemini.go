@@ -156,21 +156,21 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 		return "", err
 	}
 
-	logger.Log(fmt.Errorf("gemini execution prompt: %s", prompt))
+	logger.LogMsg(fmt.Sprintf("gemini execution prompt: %s", prompt))
 
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
-		logger.Log(fmt.Errorf("gemini generation failed: %w", err))
+		logger.LogMsg(fmt.Sprintf("gemini generation failed: %v", err))
 		return "", fmt.Errorf("gemini generation failed: %w", err)
 	}
 
 	if len(resp.Candidates) == 0 {
-		logger.Log(fmt.Errorf("gemini returned empty candidates: %+v", resp))
+		logger.LogMsg(fmt.Sprintf("gemini returned empty candidates: %+v", resp))
 		return "", fmt.Errorf("gemini returned an empty response (no candidates)")
 	}
 
 	if len(resp.Candidates[0].Content.Parts) == 0 {
-		logger.Log(fmt.Errorf("gemini returned empty parts: %+v", resp))
+		logger.LogMsg(fmt.Sprintf("gemini returned empty parts: %+v", resp))
 		return "", fmt.Errorf("gemini returned an empty response (no parts)")
 	}
 

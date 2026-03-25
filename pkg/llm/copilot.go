@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"planner/pkg/config"
+	"planner/pkg/logger"
 	"planner/pkg/planner"
 	"planner/pkg/prompts"
 )
@@ -138,6 +139,8 @@ func (c *CopilotClient) ExecutePlan(ctx context.Context, plan string) (string, e
 		return "", err
 	}
 
+	logger.LogMsg(fmt.Sprintf("copilot execution prompt: %s", prompt))
+
 	args := []string{"-s", "-p", prompt, "--excluded-tools=*"}
 	if c.model != "" {
 		args = append(args, "--model", c.model)
@@ -145,6 +148,7 @@ func (c *CopilotClient) ExecutePlan(ctx context.Context, plan string) (string, e
 
 	out, stderr, err := c.runner(ctx, "copilot", args...)
 	if err != nil {
+		logger.LogMsg(fmt.Sprintf("copilot cli failed: %v, stderr: %s", err, string(stderr)))
 		return "", fmt.Errorf("copilot cli failed: %w\nstderr: %s", err, string(stderr))
 	}
 

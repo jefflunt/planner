@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"planner/pkg/config"
+	"planner/pkg/logger"
 	"planner/pkg/planner"
 	"planner/pkg/prompts"
 )
@@ -138,6 +139,8 @@ func (c *OpencodeClient) ExecutePlan(ctx context.Context, plan string) (string, 
 		return "", err
 	}
 
+	logger.LogMsg(fmt.Sprintf("opencode execution prompt: %s", prompt))
+
 	// Use 'run' subcommand for messages.
 	args := []string{"run", prompt, "--format", "json"}
 	if c.model != "" {
@@ -146,6 +149,7 @@ func (c *OpencodeClient) ExecutePlan(ctx context.Context, plan string) (string, 
 
 	out, stderr, err := c.runner(ctx, "opencode", args...)
 	if err != nil {
+		logger.LogMsg(fmt.Sprintf("opencode cli failed: %v, stderr: %s", err, string(stderr)))
 		return "", fmt.Errorf("opencode cli failed: %w\nstderr: %s", err, string(stderr))
 	}
 
