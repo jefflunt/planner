@@ -10,6 +10,7 @@ import (
 
 	"planner/pkg/config"
 	"planner/pkg/planner"
+	"planner/pkg/prompts"
 )
 
 type CopilotClient struct {
@@ -78,37 +79,18 @@ func (c *CopilotClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest)
 		fsStr = fmt.Sprintf("\n\nFILE SYSTEM CONTEXT:\nYou are operating within an existing codebase. Here is the current file structure of the project:\n%s\n\nUse this to understand existing files, directories, and naming conventions. DO NOT ask the user for file paths or project structure if it can be inferred from this tree.", req.FileSystemTree)
 	}
 
-	prompt := fmt.Sprintf(`You are an expert agentic task orchestrator. Your job is to analyze a task and decide whether it is actionable, requires decomposition, or needs clarification from the user.
-
-CRITICAL RULE (Actionable Heuristic): 
-A task is ONLY "actionable" if it describes the creation, deletion, or editing of ONE SINGLE FILE on disk. 
-- Example: "Refactor the authentication module" -> Not Actionable (Too vague, multiple files).
-- Example: "Rename AuthUser to SessionUser in src/auth/models.go" -> Actionable (Single file operation).
-
-If a task is too large or modifies multiple files (e.g. "Rename type X and all references"), you MUST decompose it into multiple actionable steps.%s%s%s
-
-Analyze this task:
-"""
-%s
-"""
-
-Respond with a JSON object containing:
-1. "action": Must be exactly one of "actionable", "decompose", or "ask_user".
-2. "reasoning": A brief explanation of why you chose this action.
-3. "subtasks": If action is "decompose", provide a JSON array of strings, where each string is a smaller, more specific subtask.
-4. "question": If action is "ask_user", provide the clarification question you want to ask the user.
-5. "rewritten_task": If the task contains appended clarifications from the user (e.g. "[Clarification]: ..."), rewrite the entire task to incorporate the clarification into a single coherent task description, and provide it here. Otherwise, you can omit this field.
-
-JSON Format:
-{
-  "action": "...",
-  "reasoning": "...",
-  "subtasks": [...],
-  "question": "...",
-  "rewritten_task": "..."
-}`, visionRule, ancestryStr, fsStr, req.Task)
+	prompt, err := prompts.Load("analyze_task", map[string]string{
+		"VISION_RULE":  visionRule,
+		"ANCESTRY_STR": ancestryStr,
+		"FS_STR":       fsStr,
+		"TASK":         req.Task,
+	})
+	if err != nil {
+		return planner.LLMResponse{}, err
+	}
 
 	output, err := c.executePrompt(ctx, prompt)
+
 	if err != nil {
 		return planner.LLMResponse{}, err
 	}
@@ -122,16 +104,12 @@ JSON Format:
 }
 
 func (c *CopilotClient) GeneratePlanName(ctx context.Context, task string) (string, error) {
-	prompt := fmt.Sprintf(`You are an assistant that creates short, descriptive, unique filenames for task plans.
-Given the following task description, generate a short filename (kebab-case, max 5-6 words) without any file extension.
-
-Task:
-"""
-%s
-"""
-
-Respond with a JSON object containing a single key "filename" with your chosen name.
-Example: {"filename": "add-user-auth-system"}`, task)
+	prompt, err := prompts.Load("generate_plan_name", map[string]string{
+		"TASK": task,
+	})
+	if err != nil {
+		return "", err
+	}
 
 	output, err := c.executePrompt(ctx, prompt)
 	if err != nil {
@@ -150,4 +128,25 @@ Example: {"filename": "add-user-auth-system"}`, task)
 	}
 
 	return result.Filename, nil
+}
+
+func (c *CopilotClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
+	prompt, err := prompts.Load("execute_plan", map[string]string{
+		"PLAN": plan,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	args := []string{"-s", "-p", prompt, "--excluded-tools=*"}
+	if c.model != "" {
+		args = append(args, "--model", c.model)
+	}
+
+	out, stderr, err := c.runner(ctx, "copilot", args...)
+	if err != nil {
+		return "", fmt.Errorf("copilot cli failed: %w\nstderr: %s", err, string(stderr))
+	}
+
+	return strings.TrimSpace(string(out)), nil
 }

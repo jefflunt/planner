@@ -37,3 +37,7 @@ func (m *MockClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest) (p
 func (m *MockClient) GeneratePlanName(ctx context.Context, task string) (string, error) {
 	return "mock-plan-name", nil
 }
+
+func (m *MockClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
+	return "mock implementation of plan", nil
+}

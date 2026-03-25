@@ -112,6 +112,25 @@ func (p *Planner) Save() error {
 	return p.saveUnlocked()
 }
 
+// SerializePlan returns the plan as a string representation.
+func (p *Planner) SerializePlan() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.serializeNode(p.Root, 0)
+}
+
+func (p *Planner) serializeNode(n *Node, depth int) string {
+	if n == nil {
+		return ""
+	}
+	indent := strings.Repeat("  ", depth)
+	res := fmt.Sprintf("%s- %s [%s]\n", indent, n.Task, n.Status)
+	for _, child := range n.Children {
+		res += p.serializeNode(child, depth+1)
+	}
+	return res
+}
+
 func (p *Planner) saveUnlocked() error {
 	dir := filepath.Dir(p.Config.StateFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {

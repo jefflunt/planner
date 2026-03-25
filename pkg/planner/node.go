@@ -69,6 +69,9 @@ type LLMClient interface {
 
 	// GeneratePlanName creates a short, descriptive, unique filename (without extension) for a new plan based on the task description.
 	GeneratePlanName(ctx context.Context, task string) (string, error)
+
+	// ExecutePlan sends the plan to the LLM for implementation.
+	ExecutePlan(ctx context.Context, plan string) (string, error)
 }
 
 // IsLeaf returns true if the node is atomic and has no children.

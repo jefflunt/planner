@@ -25,6 +25,10 @@ func (m *simpleMockClient) GeneratePlanName(ctx context.Context, task string) (s
 	return "test-plan", nil
 }
 
+func (m *simpleMockClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
+	return "mock implementation", nil
+}
+
 func TestPlannerListPlans(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "planner-test")
 	if err != nil {

@@ -31,6 +31,7 @@ const (
 	stateAskTask
 	stateGeneratingPlanName
 	statePlanning
+	stateExecuting
 )
 
 type model struct {
@@ -62,6 +63,9 @@ type model struct {
 	textInput           textinput.Model
 	askingForTask       bool
 	ctx                 context.Context
+
+	// Execution
+	executionOutput string
 
 	// Spinner
 	spinner spinner.Model
@@ -188,6 +192,11 @@ func startPlanning(m *model) error {
 }
 
 type promptMsg planner.UserPrompt
+
+type executionFinishedMsg struct {
+	output string
+	err    error
+}
 
 type planNameGeneratedMsg struct {
 	name string
@@ -323,6 +332,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, listenForPrompt(m.p)
+
+	case executionFinishedMsg:
+		m.executionOutput = msg.output
+		if msg.err != nil {
+			m.executionOutput = fmt.Sprintf("Error: %v", msg.err)
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		// Handle selection logic for a plan
@@ -518,6 +534,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "esc":
+			if m.state == stateExecuting {
+				m.state = statePlanning
+			}
+		case "x", "X":
+			if m.state == statePlanning {
+				m.state = stateExecuting
+				m.executionOutput = "Executing plan..."
+				plan := m.p.SerializePlan()
+				return m, func() tea.Msg {
+					output, err := m.llmClient.ExecutePlan(m.ctx, plan)
+					return executionFinishedMsg{output: output, err: err}
+				}
+			}
 		case "up", "k":
 			if m.cursorIndex > 0 {
 				m.cursorIndex--
@@ -698,6 +728,14 @@ func (m model) View() string {
 		return "Initializing plan..."
 	}
 
+	if m.state == stateExecuting {
+		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Execution Output:")))
+		b.WriteString("\n\n")
+		b.WriteString(wrapStyle.Render(m.executionOutput))
+		b.WriteString("\n\n(Press Esc to return to planning)")
+		return b.String()
+	}
+
 	var tasksBuilder strings.Builder
 	for i, n := range m.nodes {
 		// Only render items within the viewport
@@ -803,7 +841,11 @@ func (m model) View() string {
 	mainContent := b.String()
 
 	// Build the status bar
-	statusText := " Commands: j/k nav | e edit | d del | R replan | + child | [ before | ] after | q quit "
+	shortcutStyle := lipgloss.NewStyle().Background(lipgloss.Color("236")).Padding(0, 1)
+	statusText := fmt.Sprintf(" Commands: %s nav %s edit %s del %s replan %s child %s before %s after %s exec %s quit ",
+		shortcutStyle.Render("j/k"), shortcutStyle.Render("e"), shortcutStyle.Render("d"),
+		shortcutStyle.Render("R"), shortcutStyle.Render("+"), shortcutStyle.Render("["),
+		shortcutStyle.Render("]"), shortcutStyle.Render("X"), shortcutStyle.Render("q"))
 
 	pendingCount := 0
 	for _, n := range m.nodes {
