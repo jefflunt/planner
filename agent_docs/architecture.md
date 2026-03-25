@@ -32,7 +32,13 @@ A node represents a single task in the task tree.
 
 The core planner is entirely decoupled from the user interface, but the primary consumer is the `plan-tui` binary.
 
-**`plan-tui`**: Uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) to render an interactive application. It listens for `UserPrompt` messages asynchronously in its `Update` loop. When a prompt is received, it swaps the view to display a [Bubbles `textinput`](https://github.com/charmbracelet/bubbles/tree/master/textinput) component inline, capturing the user's answer and sending it back to the channel.
+**`plan-tui`**: Uses [Bubble Tea](https://github.com/charmbracelet/bubbletea) to render an interactive application. The TUI implementation is structured into four main files within `pkg/tui/`:
+- `models.go`: Defines the TUI state and core models.
+- `view.go`: Implements rendering logic.
+- `update.go`: Handles input, events, and message processing.
+- `tui.go`: Coordinates TUI component initialization and lifecycle.
+
+The application listens for `UserPrompt` messages asynchronously in its `Update` loop. When a prompt is received, it swaps the view to display a [Bubbles `textinput`](https://github.com/charmbracelet/bubbles/tree/master/textinput) component inline, capturing the user's answer and sending it back to the channel.
 
 ### State Persistence
 
