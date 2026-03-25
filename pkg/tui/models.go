@@ -85,6 +85,7 @@ func getShortcuts(m model) []shortcut {
 	case statePlanning:
 		return []shortcut{
 			{"j/k", "nav"},
+			{"esc", "back"},
 			{"e", "edit"},
 			{"d", "del"},
 			{"R", "replan"},

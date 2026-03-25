@@ -432,6 +432,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			if m.state == stateExecuting {
 				m.state = statePlanning
+			} else if m.state == statePlanning {
+				m.state = stateSelectPlan
+				m.p = nil
 			}
 		case "x", "X":
 			if m.state == statePlanning {
