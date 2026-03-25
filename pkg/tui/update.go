@@ -435,6 +435,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if m.state == statePlanning {
 				m.state = stateSelectPlan
 				m.p = nil
+
+				// Refresh plans list
+				if m.cfg != nil {
+					plans, err := planner.ListPlans(m.cfg.PlansDir)
+					if err == nil {
+						m.plans = plans
+					}
+				}
 			}
 		case "x", "X":
 			if m.state == statePlanning {

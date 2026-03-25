@@ -6,18 +6,23 @@ This project was inspired by the design of [TinyAGI/fractals](https://github.com
 
 ## Quick Start
 
+### Installation
 You can build the `plan-tui` binary using the included build script:
 
 ```bash
 ./script/build
 ```
+The executable will be generated in `bin/plan-tui`. See [`building.md`](building.md) for more details.
 
+
+---
+
+## Launching
 Launch the interactive Bubble Tea terminal UI to watch the tree build and answer LLM clarification questions in real-time:
 
 ```bash
 ./bin/plan-tui "Build a web scraper"
 ```
-
 Or pass a larger prompt via STDIN:
 
 ```bash

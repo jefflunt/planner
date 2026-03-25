@@ -10,6 +10,7 @@ import (
 	"google.golang.org/api/option"
 
 	"planner/pkg/config"
+	"planner/pkg/logger"
 	"planner/pkg/planner"
 	"planner/pkg/prompts"
 )
@@ -155,13 +156,22 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 		return "", err
 	}
 
+	logger.Log(fmt.Errorf("gemini execution prompt: %s", prompt))
+
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
+		logger.Log(fmt.Errorf("gemini generation failed: %w", err))
 		return "", fmt.Errorf("gemini generation failed: %w", err)
 	}
 
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("gemini returned an empty response")
+	if len(resp.Candidates) == 0 {
+		logger.Log(fmt.Errorf("gemini returned empty candidates: %+v", resp))
+		return "", fmt.Errorf("gemini returned an empty response (no candidates)")
+	}
+
+	if len(resp.Candidates[0].Content.Parts) == 0 {
+		logger.Log(fmt.Errorf("gemini returned empty parts: %+v", resp))
+		return "", fmt.Errorf("gemini returned an empty response (no parts)")
 	}
 
 	part := resp.Candidates[0].Content.Parts[0]
