@@ -46,6 +46,8 @@ type model struct {
 	cfg          *config.Config
 	plans        []string
 	planCursor   int
+	isSearching  bool
+	searchQuery  string
 	planName     string
 	initialTask  string
 	llmClient    planner.LLMClient
@@ -92,6 +94,8 @@ func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans 
 		textInput:    ti,
 		ctx:          ctx,
 		spinner:      s,
+		isSearching:  false,
+		searchQuery:  "",
 	}
 }
 
@@ -241,6 +245,16 @@ func flattenTree(n *planner.Node) []*planner.Node {
 	return flat
 }
 
+func getFilteredPlans(m *model) []string {
+	var filteredPlans []string
+	for _, p := range m.plans {
+		if m.searchQuery == "" || strings.Contains(strings.ToLower(p), strings.ToLower(m.searchQuery)) {
+			filteredPlans = append(filteredPlans, p)
+		}
+	}
+	return filteredPlans
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -311,34 +325,70 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, listenForPrompt(m.p)
 
 	case tea.KeyMsg:
-		// Handle plan selection state
+		// Handle selection logic for a plan
+		selectPlan := func(m *model) (tea.Model, tea.Cmd) {
+			filteredPlans := getFilteredPlans(m)
+			if m.planCursor == 0 {
+				m.state = stateAskTask
+				m.planName = ""
+				m.textInput.SetValue("")
+				m.textInput.Placeholder = "What task do you want to plan?"
+				m.textInput.Focus()
+				return m, textinput.Blink
+			} else if m.planCursor-1 < len(filteredPlans) {
+				m.planName = filteredPlans[m.planCursor-1]
+				err := startPlanning(m)
+				if err != nil {
+					m.err = err
+					return m, tea.Quit
+				}
+				return m, listenForPrompt(m.p)
+			}
+			return m, nil
+		}
+
 		if m.state == stateSelectPlan {
+			if m.isSearching {
+				switch msg.String() {
+				case "esc":
+					m.isSearching = false
+					m.searchQuery = ""
+					return m, nil
+				case "enter":
+					m.isSearching = false
+					return selectPlan(&m)
+				case "backspace":
+					if len(m.searchQuery) > 0 {
+						m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+					}
+					return m, nil
+				case "ctrl+c":
+					return m, tea.Quit
+				default:
+					if len(msg.String()) == 1 {
+						m.searchQuery += msg.String()
+					}
+					return m, nil
+				}
+			}
+
 			switch msg.String() {
+			case "/":
+				m.isSearching = true
+				m.searchQuery = ""
+				m.planCursor = 0
+				return m, nil
 			case "up", "k":
 				if m.planCursor > 0 {
 					m.planCursor--
 				}
 			case "down", "j":
-				if m.planCursor < len(m.plans) {
+				filteredPlans := getFilteredPlans(&m)
+				if m.planCursor < len(filteredPlans) {
 					m.planCursor++
 				}
 			case "enter":
-				if m.planCursor == 0 {
-					m.state = stateAskTask
-					m.planName = ""
-					m.textInput.SetValue("")
-					m.textInput.Placeholder = "What task do you want to plan?"
-					m.textInput.Focus()
-					return m, textinput.Blink
-				} else {
-					m.planName = m.plans[m.planCursor-1]
-					err := startPlanning(&m)
-					if err != nil {
-						m.err = err
-						return m, tea.Quit
-					}
-					return m, listenForPrompt(m.p)
-				}
+				return selectPlan(&m)
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			}
@@ -580,8 +630,24 @@ func (m model) View() string {
 	var b strings.Builder
 
 	if m.state == stateSelectPlan {
-		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Select a plan or create a new one:")))
+		if m.isSearching {
+			b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render(fmt.Sprintf("Search: /%s", m.searchQuery))))
+		} else {
+			b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Select a plan or create a new one:")))
+		}
 		b.WriteString("\n\n")
+
+		var filteredPlans []string
+		for _, p := range m.plans {
+			if m.searchQuery == "" || strings.Contains(strings.ToLower(p), strings.ToLower(m.searchQuery)) {
+				filteredPlans = append(filteredPlans, p)
+			}
+		}
+
+		// Adjust cursor if it's out of bounds
+		if m.planCursor > len(filteredPlans) {
+			m.planCursor = len(filteredPlans)
+		}
 
 		// Render [Create New Plan] (index 0)
 		cursor := "  "
@@ -595,8 +661,8 @@ func (m model) View() string {
 			b.WriteString(createLine + "\n")
 		}
 
-		// Render plans (index 1 to len(m.plans))
-		for i, p := range m.plans {
+		// Render plans (index 1 to len(filteredPlans))
+		for i, p := range filteredPlans {
 			idx := i + 1
 			cursor := "  "
 			if m.planCursor == idx {
@@ -610,7 +676,7 @@ func (m model) View() string {
 			}
 		}
 
-		b.WriteString("\n(Press Enter to select, j/k to navigate)")
+		b.WriteString("\n(Press Enter to select, j/k to navigate, / to search)")
 		return b.String()
 	}
 
