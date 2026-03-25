@@ -683,7 +683,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				m.executionPrompt = prompt
-				m.executionCommand = "opencode run <prompt>"
+				m.executionCommand = fmt.Sprintf("%s run <prompt>", m.cfg.LLM.Provider)
 				m.executionOutput = "Executing..."
 
 				// Initialize viewport with content

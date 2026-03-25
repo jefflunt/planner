@@ -139,7 +139,7 @@ func (c *OpencodeClient) ExecutePlan(ctx context.Context, plan string) (string, 
 	}
 
 	// Use 'run' subcommand for messages.
-	args := []string{"run", prompt}
+	args := []string{"run", prompt, "--format", "json"}
 	if c.model != "" {
 		args = append(args, "--model", c.model)
 	}
