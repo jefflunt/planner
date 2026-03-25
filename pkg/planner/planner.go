@@ -46,6 +46,12 @@ func ListPlans(plansDir string) ([]string, error) {
 	return plans, nil
 }
 
+// DeletePlan removes the plan file from disk.
+func DeletePlan(plansDir string, name string) error {
+	path := filepath.Join(plansDir, name+".json")
+	return os.Remove(path)
+}
+
 // UserPrompt allows the planner to bubble up a question to the UI and wait for a reply
 type UserPrompt struct {
 	NodeID    string

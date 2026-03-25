@@ -71,6 +71,92 @@ type model struct {
 	spinner spinner.Model
 }
 
+type shortcut struct {
+	Key, Description string
+}
+
+func getShortcuts(m model) []shortcut {
+	switch m.state {
+	case stateSelectPlan:
+		return []shortcut{
+			{"up/down", "nav"},
+			{"/", "search"},
+			{"enter", "select"},
+			{"D", "delete"},
+			{"q", "quit"},
+		}
+	case stateAskTask:
+		return []shortcut{
+			{"enter", "submit"},
+			{"ctrl+c", "quit"},
+		}
+	case statePlanning:
+		return []shortcut{
+			{"j/k", "nav"},
+			{"e", "edit"},
+			{"d", "del"},
+			{"R", "replan"},
+			{"+", "child"},
+			{"[", "before"},
+			{"]", "after"},
+			{"X", "exec"},
+			{"q", "quit"},
+		}
+	case stateExecuting:
+		return []shortcut{
+			{"esc", "return"},
+		}
+	default:
+		return nil
+	}
+}
+
+func renderStatusBar(m model) string {
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = 80
+	}
+
+	shortcuts := getShortcuts(m)
+	shortcutStyle := lipgloss.NewStyle().Background(lipgloss.Color("236")).Padding(0, 1)
+
+	var b strings.Builder
+	for i, s := range shortcuts {
+		if i > 0 {
+			b.WriteString(" ")
+		}
+		b.WriteString(shortcutStyle.Render(s.Key))
+		b.WriteString(" " + s.Description)
+	}
+	statusText := b.String()
+
+	// Add pending count if in statePlanning
+	var rightText string
+	if m.state == statePlanning {
+		pendingCount := 0
+		for _, n := range m.nodes {
+			if n.Status == planner.StatusPending {
+				pendingCount++
+			}
+		}
+		rightText = fmt.Sprintf(" pending:%d ", pendingCount)
+	}
+
+	leftPart := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("253")).
+		Background(lipgloss.Color("235")).
+		Render(statusText)
+
+	rightPart := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("253")).
+		Background(lipgloss.Color("235")).
+		Width(termWidth - lipgloss.Width(leftPart)).
+		Align(lipgloss.Right).
+		Render(rightText)
+
+	return lipgloss.JoinHorizontal(lipgloss.Left, leftPart, rightPart)
+}
+
 func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans []string, planName string, initialTask string, workspace string, client planner.LLMClient) model {
 	ti := textinput.New()
 	ti.Focus()
@@ -403,6 +489,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.planCursor < len(filteredPlans) {
 					m.planCursor++
 				}
+			case "D":
+				filteredPlans := getFilteredPlans(&m)
+				if m.planCursor > 0 && m.planCursor-1 < len(filteredPlans) {
+					planName := filteredPlans[m.planCursor-1]
+					err := planner.DeletePlan(m.cfg.PlansDir, planName)
+					if err != nil {
+						m.err = err
+					} else {
+						// Remove from m.plans
+						for i, p := range m.plans {
+							if p == planName {
+								m.plans = append(m.plans[:i], m.plans[i+1:]...)
+								break
+							}
+						}
+						// Adjust cursor if needed
+						if m.planCursor > len(getFilteredPlans(&m)) {
+							m.planCursor--
+						}
+					}
+					return m, nil
+				}
+				return m, nil
 			case "enter":
 				return selectPlan(&m)
 			case "q", "ctrl+c":
@@ -706,8 +815,7 @@ func (m model) View() string {
 			}
 		}
 
-		b.WriteString("\n(Press Enter to select, j/k to navigate, / to search)")
-		return b.String()
+		return wrapContentWithStatusBar(m, b.String())
 	}
 
 	if m.state == stateAskTask {
@@ -720,8 +828,7 @@ func (m model) View() string {
 		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render(promptStr)))
 		b.WriteString("\n\n")
 		b.WriteString(m.textInput.View())
-		b.WriteString("\n\n(Press Enter to submit)")
-		return b.String()
+		return wrapContentWithStatusBar(m, b.String())
 	}
 
 	if len(m.nodes) == 0 {
@@ -732,8 +839,7 @@ func (m model) View() string {
 		b.WriteString(wrapStyle.Render(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render("Execution Output:")))
 		b.WriteString("\n\n")
 		b.WriteString(wrapStyle.Render(m.executionOutput))
-		b.WriteString("\n\n(Press Esc to return to planning)")
-		return b.String()
+		return wrapContentWithStatusBar(m, b.String())
 	}
 
 	var tasksBuilder strings.Builder
@@ -802,21 +908,21 @@ func (m model) View() string {
 		promptBuilder.WriteString(wrapStyle.Render(m.currentPrompt.Question))
 		promptBuilder.WriteString("\n\n")
 		promptBuilder.WriteString(m.textInput.View())
-		promptBuilder.WriteString("\n\n(Press Enter to submit)\n\n")
+		promptBuilder.WriteString("\n\n")
 		hasPrompt = true
 	} else if m.editingNode != nil {
 		promptBuilder.WriteString(strings.Repeat("─", termWidth/2) + "\n")
 		promptBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Editing Task: "))
 		promptBuilder.WriteString("\n\n")
 		promptBuilder.WriteString(m.textInput.View())
-		promptBuilder.WriteString("\n\n(Press Enter to save and re-plan | Esc to cancel)\n\n")
+		promptBuilder.WriteString("\n\n")
 		hasPrompt = true
 	} else if m.addingChildTo != nil {
 		promptBuilder.WriteString(strings.Repeat("─", termWidth/2) + "\n")
 		promptBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render("Add Child Task: "))
 		promptBuilder.WriteString("\n\n")
 		promptBuilder.WriteString(m.textInput.View())
-		promptBuilder.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)\n\n")
+		promptBuilder.WriteString("\n\n")
 		hasPrompt = true
 	} else if m.addingSiblingTo != nil {
 		promptBuilder.WriteString(strings.Repeat("─", termWidth/2) + "\n")
@@ -829,7 +935,7 @@ func (m model) View() string {
 		promptBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7D56F4")).Render(fmt.Sprintf("Add Sibling Task (%s): ", mode)))
 		promptBuilder.WriteString("\n\n")
 		promptBuilder.WriteString(m.textInput.View())
-		promptBuilder.WriteString("\n\n(Press Enter to save and plan | Esc to cancel)\n\n")
+		promptBuilder.WriteString("\n\n")
 		hasPrompt = true
 	}
 
@@ -838,48 +944,22 @@ func (m model) View() string {
 	}
 	b.WriteString(tasksList)
 
-	mainContent := b.String()
+	return wrapContentWithStatusBar(m, b.String())
+}
 
-	// Build the status bar
-	shortcutStyle := lipgloss.NewStyle().Background(lipgloss.Color("236")).Padding(0, 1)
-	statusText := fmt.Sprintf(" Commands: %s nav %s edit %s del %s replan %s child %s before %s after %s exec %s quit ",
-		shortcutStyle.Render("j/k"), shortcutStyle.Render("e"), shortcutStyle.Render("d"),
-		shortcutStyle.Render("R"), shortcutStyle.Render("+"), shortcutStyle.Render("["),
-		shortcutStyle.Render("]"), shortcutStyle.Render("X"), shortcutStyle.Render("q"))
-
-	pendingCount := 0
-	for _, n := range m.nodes {
-		if n.Status == planner.StatusPending {
-			pendingCount++
-		}
+func wrapContentWithStatusBar(m model, mainContent string) string {
+	termWidth := m.width
+	if termWidth <= 0 {
+		termWidth = 80
 	}
-	pendingText := fmt.Sprintf(" pending:%d ", pendingCount)
 
-	leftPart := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("253")).
-		Background(lipgloss.Color("235")).
-		Render(statusText)
-
-	rightPart := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("253")).
-		Background(lipgloss.Color("235")).
-		Width(termWidth - lipgloss.Width(leftPart)).
-		Align(lipgloss.Right).
-		Render(pendingText)
-
-	statusBar := lipgloss.JoinHorizontal(lipgloss.Left, leftPart, rightPart)
-
-	// Since we are using an AltScreen, the height is fixed to m.height.
-	// We want the main content to take up everything except the status bar height,
-	// and we want the status bar pinned to the bottom.
+	statusBar := renderStatusBar(m)
 	statusHeight := lipgloss.Height(statusBar)
 
-	// If terminal is too small to render even the status bar, just return main content
 	if m.height <= statusHeight {
 		return mainContent
 	}
 
-	// Use Place to push the status bar to the very bottom
 	mainArea := lipgloss.NewStyle().
 		Height(m.height - statusHeight).
 		MaxHeight(m.height - statusHeight).
