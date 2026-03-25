@@ -88,6 +88,7 @@ func getShortcuts(m model) []shortcut {
 	case stateAskTask:
 		return []shortcut{
 			{"enter", "submit"},
+			{"esc", "back"},
 			{"ctrl+c", "quit"},
 		}
 	case statePlanning:
@@ -535,8 +536,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					go m.p.Start(m.ctx, task)
 				}
 				return m, nil
-			case tea.KeyCtrlC, tea.KeyEsc:
+			case tea.KeyCtrlC:
 				return m, tea.Quit
+			case tea.KeyEsc:
+				m.state = stateSelectPlan
+				m.textInput.Blur()
+				return m, nil
 			}
 
 			m.textInput, cmd = m.textInput.Update(msg)
