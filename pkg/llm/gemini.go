@@ -148,6 +148,8 @@ func (c *GeminiClient) GeneratePlanName(ctx context.Context, task string) (strin
 
 func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
 	model := g.client.GenerativeModel(g.model)
+	// Force JSON output to improve stability, especially for complex prompts
+	model.ResponseMIMEType = "application/json"
 
 	prompt, err := prompts.Load("execute_plan", map[string]string{
 		"PLAN": plan,
@@ -158,10 +160,23 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 
 	logger.LogMsg(fmt.Sprintf("gemini execution prompt: %s", prompt))
 
+	// DEBUG: Log the model configuration
+	logger.LogMsg(fmt.Sprintf("DEBUG: Model config: %+v", model))
+
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
+		// Log the error with more context
 		logger.LogMsg(fmt.Sprintf("gemini generation failed: %v", err))
 		return "", fmt.Errorf("gemini generation failed: %w", err)
+	}
+
+	// Log raw response object to inspect structure
+	logger.LogMsg(fmt.Sprintf("DEBUG: Raw Candidates: %+v", resp.Candidates))
+	if len(resp.Candidates) > 0 {
+		logger.LogMsg(fmt.Sprintf("DEBUG: Candidate 0: %+v", resp.Candidates[0]))
+		if resp.Candidates[0].Content != nil {
+			logger.LogMsg(fmt.Sprintf("DEBUG: Candidate 0 Content: %+v", resp.Candidates[0].Content))
+		}
 	}
 
 	if len(resp.Candidates) == 0 {
@@ -171,7 +186,9 @@ func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, er
 
 	if len(resp.Candidates[0].Content.Parts) == 0 {
 		candidate := resp.Candidates[0]
-		logger.LogMsg(fmt.Sprintf("gemini returned empty parts. Candidate: FinishReason=%v (%d), SafetyRatings=%+v, Index=%v", candidate.FinishReason, int(candidate.FinishReason), candidate.SafetyRatings, candidate.Index))
+		// Log the entire response as JSON for debugging
+		respJSON, _ := json.Marshal(resp)
+		logger.LogMsg(fmt.Sprintf("gemini returned empty parts. Candidate: FinishReason=%v (%d), SafetyRatings=%+v, Index=%v. Full response: %s", candidate.FinishReason, int(candidate.FinishReason), candidate.SafetyRatings, candidate.Index, string(respJSON)))
 		return "", fmt.Errorf("gemini returned an empty response (no parts)")
 	}
 
