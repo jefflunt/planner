@@ -453,11 +453,20 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			return fmt.Errorf("failed to analyze task %q: %w", node.Task, err)
 		}
 
+		p.mu.Lock()
 		if resp.RewrittenTask != "" && resp.RewrittenTask != node.Task {
-			p.mu.Lock()
 			node.Task = resp.RewrittenTask
-			p.mu.Unlock()
 		}
+		if resp.Title != "" {
+			node.Title = resp.Title
+		}
+		if resp.Details != "" {
+			node.Details = resp.Details
+		}
+		if resp.AsciiDiagram != "" {
+			node.AsciiDiagram = resp.AsciiDiagram
+		}
+		p.mu.Unlock()
 
 		switch resp.Action {
 		case ActionActionable:

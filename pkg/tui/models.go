@@ -22,6 +22,14 @@ const (
 	stateExecuting
 )
 
+type displayMode int
+
+const (
+	modeTree displayMode = iota
+	modeDetails
+	modeDiagram
+)
+
 type model struct {
 	p              *planner.Planner
 	cursorIndex    int
@@ -32,6 +40,7 @@ type model struct {
 	height         int
 
 	state        uiState
+	displayMode  displayMode
 	cfg          *config.Config
 	plans        []string
 	planCursor   int
@@ -84,6 +93,7 @@ func getShortcuts(m model) []shortcut {
 		}
 	case statePlanning:
 		return []shortcut{
+			{"tab", "view"},
 			{"j/k", "nav"},
 			{"esc", "back"},
 			{"e", "edit"},
@@ -124,6 +134,7 @@ func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans 
 
 	return model{
 		state:        state,
+		displayMode:  modeTree,
 		cfg:          cfg,
 		plans:        plans,
 		planName:     planName,

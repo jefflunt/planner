@@ -27,7 +27,10 @@ const (
 type Node struct {
 	ID           string     `json:"id"`
 	ParentID     string     `json:"parent_id,omitempty"`
-	Task         string     `json:"task"`
+	Task         string     `json:"task"` // A high-level goal that can be up to a paragraph in length
+	Title        string     `json:"title,omitempty"`
+	Details      string     `json:"details,omitempty"`
+	AsciiDiagram string     `json:"ascii_diagram,omitempty"`
 	Type         TaskType   `json:"type"`
 	Status       NodeStatus `json:"status"`
 	Children     []*Node    `json:"children,omitempty"`
@@ -47,6 +50,9 @@ const (
 // LLMResponse is the structured output from the LLM analysis.
 type LLMResponse struct {
 	Action        PlanAction `json:"action"`
+	Title         string     `json:"title,omitempty"`          // Short description (< 20 words) of the node
+	Details       string     `json:"details,omitempty"`        // Multiple paragraphs explaining the task in depth
+	AsciiDiagram  string     `json:"ascii_diagram,omitempty"`  // Text-based diagram of interactions
 	Subtasks      []string   `json:"subtasks,omitempty"`       // Populated if Action == Decompose
 	Question      string     `json:"question,omitempty"`       // Populated if Action == AskUser
 	Reasoning     string     `json:"reasoning,omitempty"`      // Why the LLM made this choice

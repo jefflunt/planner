@@ -434,6 +434,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Navigation mode
 		switch msg.String() {
+		case "tab":
+			if m.state == statePlanning {
+				m.displayMode = (m.displayMode + 1) % 3
+			}
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "esc":

@@ -151,57 +151,96 @@ func (m model) View() string {
 	}
 
 	var tasksBuilder strings.Builder
-	for i, n := range m.nodes {
-		// Only render items within the viewport
-		if i < m.viewportOffset || i >= m.viewportOffset+m.height {
-			continue
+	if m.displayMode == modeDetails {
+		if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+			n := m.nodes[m.cursorIndex]
+			displayTitle := n.Title
+			if displayTitle == "" {
+				displayTitle = n.Task
+			}
+			tasksBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render(displayTitle) + "\n\n")
+			tasksBuilder.WriteString(lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("#AAAAAA")).Render(wrapStyle.Render(n.Task)) + "\n\n")
+			tasksBuilder.WriteString(lipgloss.NewStyle().Bold(true).Render("Details:") + "\n")
+			if n.Details != "" {
+				tasksBuilder.WriteString(wrapStyle.Render(n.Details) + "\n")
+			} else {
+				tasksBuilder.WriteString(wrapStyle.Render("(No details available)") + "\n")
+			}
 		}
-
-		cursor := "  "
-		if m.cursorIndex == i {
-			cursor = "> "
+	} else if m.displayMode == modeDiagram {
+		if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+			n := m.nodes[m.cursorIndex]
+			displayTitle := n.Title
+			if displayTitle == "" {
+				displayTitle = n.Task
+			}
+			tasksBuilder.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF8A65")).Render(displayTitle) + "\n\n")
+			tasksBuilder.WriteString(lipgloss.NewStyle().Bold(true).Render("ASCII Diagram:") + "\n")
+			if n.AsciiDiagram != "" {
+				box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("#7D56F4")).Padding(1, 2).Render(n.AsciiDiagram)
+				tasksBuilder.WriteString(box + "\n")
+			} else {
+				tasksBuilder.WriteString(wrapStyle.Render("(No diagram available)") + "\n")
+			}
 		}
+	} else {
+		for i, n := range m.nodes {
+			// Only render items within the viewport
+			if i < m.viewportOffset || i >= m.viewportOffset+m.height {
+				continue
+			}
 
-		indent := strings.Repeat("  ", n.Depth)
+			cursor := "  "
+			if m.cursorIndex == i {
+				cursor = "> "
+			}
 
-		var s lipgloss.Style
-		switch n.Status {
-		case planner.StatusActionable:
-			s = statusActionableStyle
-		case planner.StatusNeedsInput:
-			s = statusNeedsInputStyle
-		default:
-			s = statusPendingStyle
-		}
+			indent := strings.Repeat("  ", n.Depth)
 
-		var indicator string
-		if n.Status == planner.StatusNeedsInput {
-			indicator = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8A65")).Render("? ")
-		} else if n.Type == planner.TaskTypeComposite {
-			indicator = "- "
-		} else if n.Type == planner.TaskTypeAtomic {
-			indicator = "- "
-		} else {
-			// Still evaluating
-			indicator = m.spinner.View()
-		}
+			var s lipgloss.Style
+			switch n.Status {
+			case planner.StatusActionable:
+				s = statusActionableStyle
+			case planner.StatusNeedsInput:
+				s = statusNeedsInputStyle
+			default:
+				s = statusPendingStyle
+			}
 
-		var line string
-		if n.Status == planner.StatusNeedsInput {
-			// Only show status string if it specifically needs input
-			line = fmt.Sprintf("%s%s%s%s (%s)", cursor, indent, indicator, n.Task, s.Render(string(n.Status)))
-		} else {
-			line = fmt.Sprintf("%s%s%s%s", cursor, indent, indicator, n.Task)
-		}
+			var indicator string
+			if n.Status == planner.StatusNeedsInput {
+				indicator = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8A65")).Render("? ")
+			} else if n.Type == planner.TaskTypeComposite {
+				indicator = "- "
+			} else if n.Type == planner.TaskTypeAtomic {
+				indicator = "- "
+			} else {
+				// Still evaluating
+				indicator = m.spinner.View()
+			}
 
-		// Optionally wrap long lines, but keep the indent structure
-		lineWrapStyle := lipgloss.NewStyle().Width(termWidth - 4)
-		renderedLine := lineWrapStyle.Render(line)
+			displayTitle := n.Title
+			if displayTitle == "" {
+				displayTitle = n.Task
+			}
 
-		if m.cursorIndex == i {
-			tasksBuilder.WriteString(selectedStyle.Render(renderedLine) + "\n")
-		} else {
-			tasksBuilder.WriteString(renderedLine + "\n")
+			var line string
+			if n.Status == planner.StatusNeedsInput {
+				// Only show status string if it specifically needs input
+				line = fmt.Sprintf("%s%s%s%s (%s)", cursor, indent, indicator, displayTitle, s.Render(string(n.Status)))
+			} else {
+				line = fmt.Sprintf("%s%s%s%s", cursor, indent, indicator, displayTitle)
+			}
+
+			// Optionally wrap long lines, but keep the indent structure
+			lineWrapStyle := lipgloss.NewStyle().Width(termWidth - 4)
+			renderedLine := lineWrapStyle.Render(line)
+
+			if m.cursorIndex == i {
+				tasksBuilder.WriteString(selectedStyle.Render(renderedLine) + "\n")
+			} else {
+				tasksBuilder.WriteString(renderedLine + "\n")
+			}
 		}
 	}
 	tasksList := tasksBuilder.String()
