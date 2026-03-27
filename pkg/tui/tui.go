@@ -9,7 +9,7 @@ import (
 	"planner/pkg/planner"
 )
 
-func StartTUI(planName string, initialTask string, cfg *config.Config, workspace string, client planner.LLMClient) error {
+func StartTUI(planName string, initialTask string, cfg *config.Config, workspace string, version string, client planner.LLMClient) error {
 	// Context for planning
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -37,7 +37,7 @@ func StartTUI(planName string, initialTask string, cfg *config.Config, workspace
 		state = statePlanning // startPlanning will change this if needed
 	}
 
-	m := initialModel(ctx, state, cfg, plans, planName, initialTask, workspace, client)
+	m := initialModel(ctx, state, cfg, plans, planName, initialTask, workspace, version, client)
 
 	// If we have a planName, try to load it right away
 	if planName != "" {

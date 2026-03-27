@@ -50,6 +50,7 @@ type model struct {
 	initialTask  string
 	llmClient    planner.LLMClient
 	workspaceDir string
+	version      string
 
 	// Prompt handling
 	currentPrompt       *planner.UserPrompt
@@ -114,7 +115,7 @@ func getShortcuts(m model) []shortcut {
 	}
 }
 
-func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans []string, planName string, initialTask string, workspace string, client planner.LLMClient) model {
+func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans []string, planName string, initialTask string, workspace string, version string, client planner.LLMClient) model {
 	ti := textinput.New()
 	ti.Focus()
 	ti.CharLimit = 1024
@@ -140,6 +141,7 @@ func initialModel(ctx context.Context, state uiState, cfg *config.Config, plans 
 		planName:     planName,
 		initialTask:  initialTask,
 		workspaceDir: workspace,
+		version:      version,
 		llmClient:    client,
 		textInput:    ti,
 		ctx:          ctx,

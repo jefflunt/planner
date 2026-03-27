@@ -12,6 +12,7 @@ import (
 	"planner/pkg/config"
 	"planner/pkg/llm"
 	"planner/pkg/tui"
+	"planner/pkg/version"
 )
 
 func isGitRepo() bool {
@@ -77,7 +78,7 @@ func main() {
 	}
 
 	// Launch the TUI
-	if err := tui.StartTUI(planName, initialTask, cfg, workspace, client); err != nil {
+	if err := tui.StartTUI(planName, initialTask, cfg, workspace, version.Version, client); err != nil {
 		fmt.Printf("Error starting TUI: %v\n", err)
 		os.Exit(1)
 	}
