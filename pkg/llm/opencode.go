@@ -160,7 +160,7 @@ func (c *OpencodeClient) GetExecCommand(ctx context.Context, plan string) (*exec
 
 	logger.LogMsg(fmt.Sprintf("opencode execution prompt: %s", prompt))
 
-	args := []string{"run", prompt}
+	args := []string{".", "--prompt", prompt}
 	if c.model != "" {
 		args = append(args, "--model", c.model)
 	}
