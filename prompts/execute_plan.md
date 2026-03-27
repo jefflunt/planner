@@ -1,6 +1,8 @@
 # goal
 
-implement the following plan step by step. if you have any questions along the way simply choose a solution that will work for now and seems to feel reasonably well into the rest of the surrouding system.
+First, analyze the provided task, details, and overall plan structure. Create a consolidated, complete implementation plan that accounts for all TODOs, dependencies, and necessary code changes. This implementation plan MUST be declarative, avoid asking questions, and proactively infer technical details from the current codebase context.
+
+Then, execute this implementation plan step-by-step. If you encounter unforeseen issues, adapt the plan iteratively to ensure the goal is met.
 
 ## Task
 {{TASK}}
@@ -18,7 +20,7 @@ implement the following plan step by step. if you have any questions along the w
 
 # workflow
 You are an autonomous agent. You must execute this plan iteratively. For each step:
-1. Determine the next actionable task.
+1. Determine the next actionable task based on your consolidated implementation plan.
 2. Execute the necessary commands or file operations to complete that task.
 3. Observe the output of your actions.
 4. If successful, move to the next task.
