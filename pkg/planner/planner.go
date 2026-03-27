@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -333,6 +334,73 @@ func (p *Planner) AddSibling(siblingID string, task string, before bool) (*Node,
 	return newNode, nil
 }
 
+// InsertParent inserts a new node directly above the target node.
+// The target node becomes the only child of the new node.
+func (p *Planner) InsertParent(targetID string, task string) (*Node, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.Root == nil {
+		return nil, fmt.Errorf("no active plan")
+	}
+
+	target := p.Root.Find(targetID)
+	if target == nil {
+		return nil, fmt.Errorf("target node not found")
+	}
+
+	newNode := &Node{
+		ID:       uuid.New().String(),
+		Task:     task,
+		Status:   StatusComposite,
+		Type:     TaskTypeComposite,
+		Children: []*Node{target},
+	}
+
+	parent := p.findParent(p.Root, targetID)
+	if parent == nil {
+		// target is root
+		if p.Root.ID != targetID {
+			return nil, fmt.Errorf("internal error: target is not root but has no parent")
+		}
+		newNode.Depth = 0
+		target.ParentID = newNode.ID
+		p.Root = newNode
+	} else {
+		// target is not root
+		newNode.ParentID = parent.ID
+		newNode.Depth = parent.Depth + 1
+
+		// replace target in parent.Children with newNode
+		for i, child := range parent.Children {
+			if child.ID == targetID {
+				parent.Children[i] = newNode
+				break
+			}
+		}
+		target.ParentID = newNode.ID
+	}
+
+	// update depths recursively
+	p.incrementDepth(target)
+
+	if err := p.saveUnlocked(); err != nil {
+		return nil, err
+	}
+
+	return newNode, nil
+}
+
+func (p *Planner) incrementDepth(n *Node) {
+	if n == nil {
+		return
+	}
+	n.Depth++
+	for _, child := range n.Children {
+		p.incrementDepth(child)
+	}
+}
+
 // DeleteNode removes a node and all its children from the tree.
 func (p *Planner) DeleteNode(id string) error {
 	p.mu.Lock()
@@ -554,4 +622,29 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			// The loop will continue, passing the augmented task back to the LLM
 		}
 	}
+}
+
+// GetExecCommand gathers the node's context and the overall plan structure,
+// then returns an un-started exec.Cmd that will execute the plan natively.
+func (p *Planner) GetExecCommand(ctx context.Context, nodeID string) (*exec.Cmd, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.Root == nil {
+		return nil, fmt.Errorf("no active plan")
+	}
+
+	node := p.Root.Find(nodeID)
+	if node == nil {
+		return nil, fmt.Errorf("node not found")
+	}
+
+	req := ExecRequest{
+		Task:          node.Task,
+		Details:       node.Details,
+		AsciiDiagram:  node.AsciiDiagram,
+		PlanStructure: p.Root.FormatPlanStructure(0),
+	}
+
+	return p.LLM.GetExecCommand(ctx, req)
 }

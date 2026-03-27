@@ -26,8 +26,18 @@ func (m *simpleMockClient) GeneratePlanName(ctx context.Context, task string) (s
 	return "test-plan", nil
 }
 
-func (m *simpleMockClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
+func (m *simpleMockClient) GetExecCommand(ctx context.Context, req ExecRequest) (*exec.Cmd, error) {
 	return exec.Command("echo", "mock execution"), nil
+}
+
+type execMockClient struct {
+	simpleMockClient
+	lastReq ExecRequest
+}
+
+func (m *execMockClient) GetExecCommand(ctx context.Context, req ExecRequest) (*exec.Cmd, error) {
+	m.lastReq = req
+	return exec.Command("echo", "mock"), nil
 }
 
 func TestPlannerListPlans(t *testing.T) {
@@ -373,6 +383,99 @@ func TestPlannerAddSibling(t *testing.T) {
 	}
 }
 
+func TestPlannerInsertParent(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+
+	p := NewPlanner(cfg, &simpleMockClient{})
+	p.Root = &Node{
+		ID:    "root",
+		Task:  "Root",
+		Depth: 0,
+		Children: []*Node{
+			{
+				ID:       "child-1",
+				ParentID: "root",
+				Task:     "Child 1",
+				Depth:    1,
+				Children: []*Node{
+					{
+						ID:       "grandchild-1",
+						ParentID: "child-1",
+						Task:     "Grandchild 1",
+						Depth:    2,
+					},
+				},
+			},
+		},
+	}
+
+	// Insert parent above child-1
+	newParent, err := p.InsertParent("child-1", "New Parent")
+	if err != nil {
+		t.Fatalf("Failed to insert parent: %v", err)
+	}
+
+	if len(p.Root.Children) != 1 {
+		t.Fatalf("Expected 1 child of root, got %d", len(p.Root.Children))
+	}
+	if p.Root.Children[0].ID != newParent.ID {
+		t.Errorf("Expected root's child to be the new parent")
+	}
+	if len(newParent.Children) != 1 {
+		t.Fatalf("Expected 1 child of new parent, got %d", len(newParent.Children))
+	}
+	if newParent.Children[0].ID != "child-1" {
+		t.Errorf("Expected new parent's child to be child-1")
+	}
+	if newParent.ParentID != "root" {
+		t.Errorf("Expected new parent's parent ID to be 'root', got %s", newParent.ParentID)
+	}
+	if p.Root.Children[0].Depth != 1 {
+		t.Errorf("Expected new parent depth to be 1, got %d", p.Root.Children[0].Depth)
+	}
+	child1 := p.Find("child-1")
+	if child1.ParentID != newParent.ID {
+		t.Errorf("Expected child-1's parent ID to be new parent's ID")
+	}
+	if child1.Depth != 2 {
+		t.Errorf("Expected child-1 depth to be 2, got %d", child1.Depth)
+	}
+	grandchild1 := p.Find("grandchild-1")
+	if grandchild1.Depth != 3 {
+		t.Errorf("Expected grandchild-1 depth to be 3, got %d", grandchild1.Depth)
+	}
+	if newParent.Status != StatusComposite || newParent.Type != TaskTypeComposite {
+		t.Errorf("Expected new parent to be composite")
+	}
+
+	// Insert parent above root
+	newRoot, err := p.InsertParent("root", "New Root")
+	if err != nil {
+		t.Fatalf("Failed to insert parent above root: %v", err)
+	}
+
+	if p.Root.ID != newRoot.ID {
+		t.Errorf("Expected tree root to be updated to new root")
+	}
+	if p.Root.Depth != 0 {
+		t.Errorf("Expected new root depth to be 0")
+	}
+	oldRoot := p.Find("root")
+	if oldRoot.ParentID != newRoot.ID {
+		t.Errorf("Expected old root's parent to be new root")
+	}
+	if oldRoot.Depth != 1 {
+		t.Errorf("Expected old root depth to be 1")
+	}
+}
+
 func TestPlannerEditNode(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "planner-test")
 	if err != nil {
@@ -486,5 +589,58 @@ func TestSerializePlan(t *testing.T) {
 	p.Root = nil
 	if p.SerializePlan() != "" {
 		t.Errorf("Expected empty string for nil root")
+	}
+}
+
+func TestPlannerGetExecCommand(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+	mockClient := &execMockClient{}
+	p := NewPlanner(cfg, mockClient)
+
+	p.Root = &Node{
+		ID:           "root-id",
+		Task:         "Root Task",
+		Status:       StatusComposite,
+		Details:      "Root details",
+		AsciiDiagram: "[Root]",
+		Children: []*Node{
+			{
+				ID:           "child-1",
+				Task:         "Child 1",
+				Status:       StatusActionable,
+				Details:      "Child 1 details",
+				AsciiDiagram: "[Child 1]",
+			},
+		},
+	}
+
+	_, err = p.GetExecCommand(context.Background(), "child-1")
+	if err != nil {
+		t.Fatalf("Failed to get exec command: %v", err)
+	}
+
+	expectedTask := "Child 1"
+	expectedDetails := "Child 1 details"
+	expectedDiagram := "[Child 1]"
+	expectedStructure := "- Root Task [composite]\n  - Child 1 [actionable]\n"
+
+	if mockClient.lastReq.Task != expectedTask {
+		t.Errorf("Expected Task %q, got %q", expectedTask, mockClient.lastReq.Task)
+	}
+	if mockClient.lastReq.Details != expectedDetails {
+		t.Errorf("Expected Details %q, got %q", expectedDetails, mockClient.lastReq.Details)
+	}
+	if mockClient.lastReq.AsciiDiagram != expectedDiagram {
+		t.Errorf("Expected AsciiDiagram %q, got %q", expectedDiagram, mockClient.lastReq.AsciiDiagram)
+	}
+	if mockClient.lastReq.PlanStructure != expectedStructure {
+		t.Errorf("Expected PlanStructure %q, got %q", expectedStructure, mockClient.lastReq.PlanStructure)
 	}
 }

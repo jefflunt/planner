@@ -2,8 +2,18 @@
 
 implement the following plan step by step. if you have any questions along the way simply choose a solution that will work for now and seems to feel reasonably well into the rest of the surrouding system.
 
+## Task
+{{TASK}}
+
+## Details
+{{DETAILS}}
+
+## Diagram
+{{ASCII_DIAGRAM}}
+
+## Overall Plan Structure
 ```
-{{PLAN}}
+{{PLAN_STRUCTURE}}
 ```
 
 # workflow

@@ -39,6 +39,6 @@ func (m *MockClient) GeneratePlanName(ctx context.Context, task string) (string,
 	return "mock-plan-name", nil
 }
 
-func (m *MockClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
+func (m *MockClient) GetExecCommand(ctx context.Context, req planner.ExecRequest) (*exec.Cmd, error) {
 	return exec.Command("echo", "mock execution"), nil
 }

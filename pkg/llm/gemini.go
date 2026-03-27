@@ -16,7 +16,6 @@ import (
 	"planner/prompts"
 )
 
-
 type GeminiClient struct {
 	client *genai.Client
 	model  string
@@ -148,9 +147,12 @@ func (c *GeminiClient) GeneratePlanName(ctx context.Context, task string) (strin
 	return result.Filename, nil
 }
 
-func (g *GeminiClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
+func (g *GeminiClient) GetExecCommand(ctx context.Context, req planner.ExecRequest) (*exec.Cmd, error) {
 	prompt, err := prompts.Load("execute_plan", map[string]string{
-		"PLAN": plan,
+		"TASK":           req.Task,
+		"DETAILS":        req.Details,
+		"ASCII_DIAGRAM":  req.AsciiDiagram,
+		"PLAN_STRUCTURE": req.PlanStructure,
 	})
 	if err != nil {
 		return nil, err

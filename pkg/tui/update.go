@@ -432,6 +432,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+		// If we are currently inserting a parent
+		if m.insertingParentTo != nil {
+			switch msg.Type {
+			case tea.KeyEnter:
+				newTask := strings.TrimSpace(m.textInput.Value())
+				if newTask != "" {
+					node, err := m.p.InsertParent(m.insertingParentTo.ID, newTask)
+					if err == nil {
+						go m.p.Plan(m.ctx, node)
+					}
+				}
+				m.insertingParentTo = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyEsc:
+				m.insertingParentTo = nil
+				m.textInput.Blur()
+				return m, nil
+			case tea.KeyCtrlC:
+				return m, tea.Quit
+			}
+
+			m.textInput, cmd = m.textInput.Update(msg)
+			return m, cmd
+		}
+
 		// Navigation mode
 		switch msg.String() {
 		case "tab":
@@ -457,9 +483,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "x", "X":
 			if m.state == statePlanning {
-				plan := m.p.SerializePlan()
+				if m.cursorIndex < 0 || m.cursorIndex >= len(m.nodes) {
+					return m, nil
+				}
+				node := m.nodes[m.cursorIndex]
 
-				cmd, err := m.llmClient.GetExecCommand(m.ctx, plan)
+				cmd, err := m.p.GetExecCommand(m.ctx, node.ID)
 				if err != nil {
 					m.state = stateExecuting
 					m.executionOutput = fmt.Sprintf("Error preparing command:\n\n%v", err)
@@ -538,6 +567,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.addingChildTo = m.nodes[m.cursorIndex]
 				m.textInput.SetValue("")
 				m.textInput.Placeholder = "Enter child task..."
+				m.textInput.Focus()
+				return m, textinput.Blink
+			}
+		case "^":
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.nodes) {
+				m.insertingParentTo = m.nodes[m.cursorIndex]
+				m.textInput.SetValue("")
+				m.textInput.Placeholder = "Enter parent task..."
 				m.textInput.Focus()
 				return m, textinput.Blink
 			}

@@ -2,7 +2,9 @@ package planner
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
+	"strings"
 )
 
 // TaskType represents whether a task can be broken down further.
@@ -68,6 +70,14 @@ type LLMRequest struct {
 	FileSystemTree string   // List of files in the current working directory to provide codebase context
 }
 
+// ExecRequest contains the context of the current node and the overall plan structure.
+type ExecRequest struct {
+	Task          string
+	Details       string
+	AsciiDiagram  string
+	PlanStructure string
+}
+
 // LLMClient represents an abstract interface for the LLM to classify and decompose tasks.
 type LLMClient interface {
 	// AnalyzeTask evaluates a task to determine if it's actionable (single file operation),
@@ -78,7 +88,7 @@ type LLMClient interface {
 	GeneratePlanName(ctx context.Context, task string) (string, error)
 
 	// GetExecCommand returns an un-started exec.Cmd that will execute the plan natively in the terminal.
-	GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error)
+	GetExecCommand(ctx context.Context, req ExecRequest) (*exec.Cmd, error)
 }
 
 // IsLeaf returns true if the node is atomic and has no children.
@@ -109,4 +119,17 @@ func (n *Node) LeafNodes() []*Node {
 		leaves = append(leaves, child.LeafNodes()...)
 	}
 	return leaves
+}
+
+// FormatPlanStructure recursively serializes the entire plan tree into a formatted text representation.
+func (n *Node) FormatPlanStructure(depth int) string {
+	if n == nil {
+		return ""
+	}
+	indent := strings.Repeat("  ", depth)
+	res := fmt.Sprintf("%s- %s [%s]\n", indent, n.Task, n.Status)
+	for _, child := range n.Children {
+		res += child.FormatPlanStructure(depth + 1)
+	}
+	return res
 }

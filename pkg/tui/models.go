@@ -56,6 +56,7 @@ type model struct {
 	currentPrompt       *planner.UserPrompt
 	editingNode         *planner.Node
 	addingChildTo       *planner.Node
+	insertingParentTo   *planner.Node
 	addingSiblingTo     *planner.Node
 	addingSiblingBefore bool
 	textInput           textinput.Model
@@ -101,6 +102,7 @@ func getShortcuts(m model) []shortcut {
 			{"d", "del"},
 			{"R", "replan"},
 			{"+", "child"},
+			{"^", "parent"},
 			{"[", "before"},
 			{"]", "after"},
 			{"X", "exec"},
