@@ -63,6 +63,7 @@ type UserPrompt struct {
 // Planner is the central orchestrator for the task tree
 type Planner struct {
 	mu           sync.RWMutex
+	saveMu       sync.Mutex
 	Root         *Node           `json:"root"`
 	Config       Config          `json:"config"`
 	LLM          LLMClient       `json:"-"`
@@ -148,6 +149,8 @@ func (p *Planner) saveUnlocked() error {
 		return fmt.Errorf("failed to marshal state: %w", err)
 	}
 
+	p.saveMu.Lock()
+	defer p.saveMu.Unlock()
 	return os.WriteFile(p.Config.StateFile, data, 0644)
 }
 
@@ -474,6 +477,7 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			node.Type = TaskTypeAtomic
 			node.Status = StatusActionable
 			p.mu.Unlock()
+			p.Save()
 			return nil // Branch terminates successfully
 		case ActionDecompose:
 			p.mu.Lock()
@@ -490,6 +494,7 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 				node.Children = append(node.Children, child)
 			}
 			p.mu.Unlock()
+			p.Save()
 
 			// Recursively plan children
 			g, gCtx := errgroup.WithContext(ctx)
@@ -545,6 +550,7 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 			node.Task = fmt.Sprintf("%s\n\n[Clarification]: %s", node.Task, answer)
 			node.Status = StatusPending
 			p.mu.Unlock()
+			p.Save()
 			// The loop will continue, passing the augmented task back to the LLM
 		}
 	}

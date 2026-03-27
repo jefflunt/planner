@@ -220,12 +220,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.planCursor == 0 {
 				m.state = stateAskTask
 				m.planName = ""
+				m.initialTask = ""
 				m.textInput.SetValue("")
 				m.textInput.Placeholder = "What task do you want to plan?"
 				m.textInput.Focus()
 				return m, textinput.Blink
 			} else if m.planCursor-1 < len(filteredPlans) {
 				m.planName = filteredPlans[m.planCursor-1]
+				m.initialTask = ""
 				err := startPlanning(m)
 				if err != nil {
 					m.err = err

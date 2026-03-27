@@ -452,3 +452,39 @@ func TestPlannerReplanNode(t *testing.T) {
 		t.Errorf("Expected 0 children, got %d", len(node.Children))
 	}
 }
+
+func TestSerializePlan(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "planner-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	stateFile := filepath.Join(tempDir, "state.json")
+	cfg := Config{StateFile: stateFile}
+	p := NewPlanner(cfg, nil)
+
+	p.Root = &Node{
+		ID:     "root",
+		Task:   "Root Task",
+		Status: StatusComposite,
+		Children: []*Node{
+			{
+				ID:     "child",
+				Task:   "Child Task",
+				Status: StatusActionable,
+			},
+		},
+	}
+
+	out := p.SerializePlan()
+	expected := "- Root Task [composite]\n  - Child Task [actionable]\n"
+	if out != expected {
+		t.Errorf("Expected serialized output to be %q, got %q", expected, out)
+	}
+
+	p.Root = nil
+	if p.SerializePlan() != "" {
+		t.Errorf("Expected empty string for nil root")
+	}
+}
