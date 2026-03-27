@@ -11,7 +11,7 @@ import (
 	"planner/pkg/config"
 	"planner/pkg/logger"
 	"planner/pkg/planner"
-	"planner/pkg/prompts"
+	"planner/prompts"
 )
 
 type OpencodeClient struct {
@@ -131,27 +131,21 @@ func (c *OpencodeClient) GeneratePlanName(ctx context.Context, task string) (str
 	return result.Filename, nil
 }
 
-func (c *OpencodeClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
+func (c *OpencodeClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
 	prompt, err := prompts.Load("execute_plan", map[string]string{
 		"PLAN": plan,
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	logger.LogMsg(fmt.Sprintf("opencode execution prompt: %s", prompt))
 
-	// Use 'run' subcommand for messages.
-	args := []string{"run", prompt, "--format", "json"}
+	args := []string{"run", prompt}
 	if c.model != "" {
 		args = append(args, "--model", c.model)
 	}
 
-	out, stderr, err := c.runner(ctx, "opencode", args...)
-	if err != nil {
-		logger.LogMsg(fmt.Sprintf("opencode cli failed: %v, stderr: %s", err, string(stderr)))
-		return "", fmt.Errorf("opencode cli failed: %w\nstderr: %s", err, string(stderr))
-	}
-
-	return strings.TrimSpace(string(out)), nil
+	cmd := exec.CommandContext(ctx, "opencode", args...)
+	return cmd, nil
 }

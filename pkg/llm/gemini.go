@@ -1,7 +1,6 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,28 +13,9 @@ import (
 	"planner/pkg/config"
 	"planner/pkg/logger"
 	"planner/pkg/planner"
-	"planner/pkg/prompts"
+	"planner/prompts"
 )
 
-// Tool declarations
-var runCommandTool = &genai.Tool{
-	FunctionDeclarations: []*genai.FunctionDeclaration{
-		{
-			Name:        "run_command",
-			Description: "Executes a shell command in the workspace.",
-			Parameters: &genai.Schema{
-				Type: genai.TypeObject,
-				Properties: map[string]*genai.Schema{
-					"command": {
-						Type:        genai.TypeString,
-						Description: "The shell command to run (e.g., 'ls -la', 'go test ./...').",
-					},
-				},
-				Required: []string{"command"},
-			},
-		},
-	},
-}
 
 type GeminiClient struct {
 	client *genai.Client
@@ -168,98 +148,22 @@ func (c *GeminiClient) GeneratePlanName(ctx context.Context, task string) (strin
 	return result.Filename, nil
 }
 
-func (g *GeminiClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
-	model := g.client.GenerativeModel(g.model)
-	// Tool calling is incompatible with forced JSON MIME type
-	model.Tools = []*genai.Tool{runCommandTool}
-
+func (g *GeminiClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
 	prompt, err := prompts.Load("execute_plan", map[string]string{
 		"PLAN": plan,
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	logger.LogMsg(fmt.Sprintf("gemini execution prompt: %s", prompt))
 
-	chat := model.StartChat()
-	resp, err := chat.SendMessage(ctx, genai.Text(prompt))
-	if err != nil {
-		logger.LogMsg(fmt.Sprintf("gemini generation failed: %v", err))
-		return "", fmt.Errorf("gemini generation failed: %w", err)
+	cmdStr := "gemini"
+	args := []string{prompt}
+	if g.model != "" {
+		args = append(args, "--model", g.model)
 	}
 
-	// Simple loop to handle tool calls
-	for {
-		// Check for function calls
-		if len(resp.Candidates) > 0 && len(resp.Candidates[0].FunctionCalls()) > 0 {
-			for _, fc := range resp.Candidates[0].FunctionCalls() {
-				if fc.Name == "run_command" {
-					cmdStr, ok := fc.Args["command"].(string)
-					if !ok {
-						return "", fmt.Errorf("invalid command argument")
-					}
-
-					logger.LogMsg(fmt.Sprintf("DEBUG: Tool call: run_command %s", cmdStr))
-
-					// Execute the command
-					cmd := exec.Command("sh", "-c", cmdStr)
-					var out bytes.Buffer
-					cmd.Stdout = &out
-					cmd.Stderr = &out
-					err := cmd.Run()
-
-					output := out.String()
-					if err != nil {
-						output = fmt.Sprintf("Error: %v\nOutput: %s", err, output)
-					}
-
-					logger.LogMsg(fmt.Sprintf("DEBUG: Tool executed: %s, Result: %s", cmdStr, output))
-
-					toolResp := genai.FunctionResponse{
-						Name: "run_command",
-						Response: map[string]any{
-							"output": output,
-						},
-					}
-					resp, err = chat.SendMessage(ctx, toolResp)
-					if err != nil {
-						return "", err
-					}
-					continue
-				}
-			}
-		}
-		break
-	}
-
-	// Process final response
-	if len(resp.Candidates) == 0 {
-		return "", fmt.Errorf("gemini returned an empty response")
-	}
-
-	// Process final response
-	if len(resp.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("gemini returned an empty response")
-	}
-
-	// Try to get as Text first
-	part := resp.Candidates[0].Content.Parts[0]
-
-	// Convert part to string based on its actual type
-	var text string
-	if t, ok := part.(genai.Text); ok {
-		text = string(t)
-	} else {
-		// Attempt to JSON encode the part as a fallback for other types
-		b, err := json.Marshal(part)
-		if err == nil {
-			text = string(b)
-		} else {
-			logger.LogMsg(fmt.Sprintf("DEBUG: Unknown part type: %T, value: %+v", part, part))
-			return "", fmt.Errorf("expected genai.Text response from gemini, got %T", part)
-		}
-	}
-
-	return text, nil
+	cmd := exec.CommandContext(ctx, cmdStr, args...)
+	return cmd, nil
 }

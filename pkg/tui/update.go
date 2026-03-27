@@ -12,7 +12,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"planner/pkg/planner"
-	"planner/pkg/prompts"
 )
 
 type promptMsg planner.UserPrompt
@@ -194,13 +193,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, listenForPrompt(m.p)
 
 	case executionFinishedMsg:
-		m.executionOutput = msg.output
+		m.state = statePlanning
 		if msg.err != nil {
-			m.executionOutput = fmt.Sprintf("Error: %v", msg.err)
+			m.state = stateExecuting
+			m.executionOutput = fmt.Sprintf("Execution Error:\n\n%v", msg.err)
+			m.viewport.SetContent(m.executionOutput)
 		}
-		// Update viewport
-		content := fmt.Sprintf("Prompt:\n%s\n\nCommand:\n%s\n\nOutput:\n%s", m.executionPrompt, m.executionCommand, m.executionOutput)
-		m.viewport.SetContent(content)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -457,28 +455,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "x", "X":
 			if m.state == statePlanning {
-				m.state = stateExecuting
 				plan := m.p.SerializePlan()
 
-				// Load prompt
-				prompt, err := prompts.Load("execute_plan", map[string]string{"PLAN": plan})
+				cmd, err := m.llmClient.GetExecCommand(m.ctx, plan)
 				if err != nil {
-					m.executionOutput = fmt.Sprintf("Error loading prompt: %v", err)
+					m.state = stateExecuting
+					m.executionOutput = fmt.Sprintf("Error preparing command:\n\n%v", err)
+					m.viewport.SetContent(m.executionOutput)
 					return m, nil
 				}
 
-				m.executionPrompt = prompt
-				m.executionCommand = fmt.Sprintf("%s run <prompt>", m.cfg.LLM.Provider)
-				m.executionOutput = "Executing..."
-
-				// Initialize viewport with content
-				content := fmt.Sprintf("Prompt:\n%s\n\nCommand:\n%s\n\nOutput:\n%s", m.executionPrompt, m.executionCommand, m.executionOutput)
-				m.viewport.SetContent(content)
-
-				return m, func() tea.Msg {
-					output, err := m.llmClient.ExecutePlan(m.ctx, plan)
-					return executionFinishedMsg{output: output, err: err}
-				}
+				return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+					return executionFinishedMsg{output: "Interactive execution finished natively.", err: err}
+				})
 			}
 		case "up", "k":
 			if m.cursorIndex > 0 {

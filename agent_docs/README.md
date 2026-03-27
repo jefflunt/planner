@@ -42,6 +42,7 @@ This folder follows **Progressive Disclosure** principles — show what exists a
 | **This file** | Repo overview, file map, key facts | Always — start here |
 | [`architecture.md`](architecture.md) | The generic task tree, TUI vs CLI separation, and state management | Changing core logic, adding new UI components |
 | [`planning_workflow.md`](planning_workflow.md) | Step-by-step walkthrough of how tasks are analyzed, decomposed, and how the planner yields for user input | Changing the LLM interaction loop or Actionable heuristic |
+| [`execution_workflow.md`](execution_workflow.md) | How the TUI delegates task tree execution to native external agents | Making changes to execution behavior or native process handling |
 | [`building.md`](building.md) | Build process and commands | Building the binaries |
 | [`config.md`](config.md) | Configuration options (state files, workspaces) | Changing CLI flags or configuration options |
 | [`plans/`](plans/) | Design plans for future or in-progress features | Starting a significant new feature (e.g. real LLM integration) |

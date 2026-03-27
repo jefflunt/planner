@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -25,8 +26,8 @@ func (m *simpleMockClient) GeneratePlanName(ctx context.Context, task string) (s
 	return "test-plan", nil
 }
 
-func (m *simpleMockClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
-	return "mock implementation", nil
+func (m *simpleMockClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
+	return exec.Command("echo", "mock execution"), nil
 }
 
 func TestPlannerListPlans(t *testing.T) {

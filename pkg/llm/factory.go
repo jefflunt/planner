@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"fmt"
+	"os/exec"
 
 	"planner/pkg/config"
 	"planner/pkg/planner"
@@ -38,6 +39,6 @@ func (m *MockClient) GeneratePlanName(ctx context.Context, task string) (string,
 	return "mock-plan-name", nil
 }
 
-func (m *MockClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
-	return "mock implementation of plan", nil
+func (m *MockClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
+	return exec.Command("echo", "mock execution"), nil
 }

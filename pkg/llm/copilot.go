@@ -11,7 +11,7 @@ import (
 	"planner/pkg/config"
 	"planner/pkg/logger"
 	"planner/pkg/planner"
-	"planner/pkg/prompts"
+	"planner/prompts"
 )
 
 type CopilotClient struct {
@@ -131,26 +131,21 @@ func (c *CopilotClient) GeneratePlanName(ctx context.Context, task string) (stri
 	return result.Filename, nil
 }
 
-func (c *CopilotClient) ExecutePlan(ctx context.Context, plan string) (string, error) {
+func (c *CopilotClient) GetExecCommand(ctx context.Context, plan string) (*exec.Cmd, error) {
 	prompt, err := prompts.Load("execute_plan", map[string]string{
 		"PLAN": plan,
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	logger.LogMsg(fmt.Sprintf("copilot execution prompt: %s", prompt))
 
-	args := []string{"-s", "-p", prompt, "--excluded-tools=*"}
+	args := []string{"-s", "-p", prompt}
 	if c.model != "" {
 		args = append(args, "--model", c.model)
 	}
 
-	out, stderr, err := c.runner(ctx, "copilot", args...)
-	if err != nil {
-		logger.LogMsg(fmt.Sprintf("copilot cli failed: %v, stderr: %s", err, string(stderr)))
-		return "", fmt.Errorf("copilot cli failed: %w\nstderr: %s", err, string(stderr))
-	}
-
-	return strings.TrimSpace(string(out)), nil
+	cmd := exec.CommandContext(ctx, "copilot", args...)
+	return cmd, nil
 }
