@@ -47,7 +47,7 @@ func renderStatusBar(m model) string {
 		}
 		rightText = fmt.Sprintf(" pending:%d ", pendingCount)
 	} else if m.state == stateSelectPlan && m.version != "" {
-		rightText = fmt.Sprintf(" version:%s ", m.version)
+		rightText = fmt.Sprintf(" %s ", m.version)
 	}
 
 	leftPart := lipgloss.NewStyle().
