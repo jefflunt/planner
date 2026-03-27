@@ -19,9 +19,9 @@ An example `config.yml` looks like:
 ```yaml
 plans_dir: "~/.planner/plans"
 llm:
-  provider: "gemini" # Can be "gemini" or "copilot"
+  provider: "gemini" # Can be "gemini", "copilot", or "claude"
   model: "gemini-3.1-flash-lite-preview"
-  api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY env var (ignored for copilot)
+  api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY or ANTHROPIC_API_KEY env var (ignored for copilot)
 ```
 
 ### LLM Providers
@@ -29,6 +29,10 @@ llm:
 **Gemini (`provider: "gemini"`)**
 - The default provider. Requires `api_key` to be set in the config file or via the `GEMINI_API_KEY` environment variable.
 - Configure `model` to pick a specific model (e.g. `gemini-3.1-flash-lite-preview`).
+
+**Anthropic Claude (`provider: "claude"`)**
+- Requires `api_key` to be set in the config file or via the `ANTHROPIC_API_KEY` environment variable.
+- Configure `model` to pick a specific model (e.g. `claude-3-5-sonnet-latest`).
 
 **GitHub Copilot (`provider: "copilot"`)**
 - Requires the `copilot` command line interface to be installed and authenticated (`copilot auth`).

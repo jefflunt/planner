@@ -12,9 +12,9 @@ import (
 type Config struct {
 	PlansDir string `yaml:"plans_dir"`
 	LLM      struct {
-		Provider string `yaml:"provider"` // e.g., "gemini" or "copilot"
-		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview" (for gemini) or "gpt-4o" (for copilot)
-		APIKey   string `yaml:"api_key"`  // Required for gemini; ignored by copilot
+		Provider string `yaml:"provider"` // e.g., "gemini", "copilot", or "claude"
+		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview", "gpt-4o", or "claude-3-5-sonnet-latest"
+		APIKey   string `yaml:"api_key"`  // Required for gemini and claude; ignored by copilot
 	} `yaml:"llm"`
 	MaxConcurrency int `yaml:"max_concurrency"`
 	MaxRetries     int `yaml:"max_retries"`
