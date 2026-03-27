@@ -110,18 +110,24 @@ func (m model) View() string {
 			b.WriteString(createLine + "\n")
 		}
 
-		// Render plans (index 1 to len(filteredPlans))
-		for i, p := range filteredPlans {
-			idx := i + 1
-			cursor := "  "
-			if m.planCursor == idx {
-				cursor = "> "
-			}
-			line := fmt.Sprintf("%s%s", cursor, p)
-			if m.planCursor == idx {
-				b.WriteString(selectedStyle.Render(line) + "\n")
-			} else {
-				b.WriteString(line + "\n")
+		if len(m.plans) == 0 {
+			b.WriteString("\n  No plans found\n")
+		} else if len(filteredPlans) == 0 {
+			b.WriteString("\n  No plans match your search\n")
+		} else {
+			// Render plans (index 1 to len(filteredPlans))
+			for i, p := range filteredPlans {
+				idx := i + 1
+				cursor := "  "
+				if m.planCursor == idx {
+					cursor = "> "
+				}
+				line := fmt.Sprintf("%s%s", cursor, p)
+				if m.planCursor == idx {
+					b.WriteString(selectedStyle.Render(line) + "\n")
+				} else {
+					b.WriteString(line + "\n")
+				}
 			}
 		}
 

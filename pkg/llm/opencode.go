@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -13,6 +14,13 @@ import (
 	"planner/pkg/planner"
 	"planner/prompts"
 )
+
+type opencodeEvent struct {
+	Type string `json:"type"`
+	Part struct {
+		Text string `json:"text,omitempty"`
+	} `json:"part"`
+}
 
 type OpencodeClient struct {
 	model  string
@@ -43,6 +51,7 @@ func NewOpencodeClient(ctx context.Context, cfg *config.Config) (*OpencodeClient
 }
 
 func (c *OpencodeClient) executePrompt(ctx context.Context, prompt string) (string, error) {
+	logger.LogMsg("executePrompt called")
 	// Use 'run' subcommand for messages
 	args := []string{"run", prompt, "--format", "json"}
 	if c.model != "" {
@@ -53,13 +62,23 @@ func (c *OpencodeClient) executePrompt(ctx context.Context, prompt string) (stri
 	if err != nil {
 		return "", fmt.Errorf("opencode cli failed: %w\nstderr: %s", err, string(stderr))
 	}
+	logger.LogMsg(fmt.Sprintf("opencode output: %s", string(out)))
+	logger.LogMsg(fmt.Sprintf("opencode stderr: %s", string(stderr)))
 
-	output := strings.TrimSpace(string(out))
+	// Parse stream line-by-line
+	var fullText strings.Builder
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		var event opencodeEvent
+		if err := json.Unmarshal(scanner.Bytes(), &event); err == nil {
+			if event.Type == "text" && event.Part.Text != "" {
+				fullText.WriteString(event.Part.Text)
+			}
+		}
+	}
 
 	// Extract JSON block if opencode included other text
-	output = extractJSON(output)
-
-	return output, nil
+	return extractJSON(fullText.String()), nil
 }
 
 func (c *OpencodeClient) AnalyzeTask(ctx context.Context, req planner.LLMRequest) (planner.LLMResponse, error) {

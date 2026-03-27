@@ -71,3 +71,40 @@ func TestGetFilteredPlans(t *testing.T) {
 		t.Errorf("Expected 2 filtered plans, got %d", len(filtered))
 	}
 }
+
+func TestDetermineInitialState(t *testing.T) {
+	tests := []struct {
+		name        string
+		planName    string
+		initialTask string
+		expected    uiState
+	}{
+		{
+			name:        "Defaults to Select Plan view when no plan name or initial task",
+			planName:    "",
+			initialTask: "",
+			expected:    stateSelectPlan,
+		},
+		{
+			name:        "Starts with statePlanning if plan name is provided",
+			planName:    "my-plan",
+			initialTask: "",
+			expected:    statePlanning,
+		},
+		{
+			name:        "Starts with stateGeneratingPlanName if initial task is provided",
+			planName:    "",
+			initialTask: "build a web app",
+			expected:    stateGeneratingPlanName,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := determineInitialState(tt.planName, tt.initialTask)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}

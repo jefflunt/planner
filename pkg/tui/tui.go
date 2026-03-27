@@ -9,12 +9,21 @@ import (
 	"planner/pkg/planner"
 )
 
+func determineInitialState(planName string, initialTask string) uiState {
+	if planName != "" {
+		return statePlanning
+	}
+	if initialTask != "" {
+		return stateGeneratingPlanName
+	}
+	return stateSelectPlan
+}
+
 func StartTUI(planName string, initialTask string, cfg *config.Config, workspace string, version string, client planner.LLMClient) error {
 	// Context for planning
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var state uiState
 	var plans []string
 	var err error
 	plansDir := cfg.PlansDir
@@ -24,18 +33,9 @@ func StartTUI(planName string, initialTask string, cfg *config.Config, workspace
 		if err != nil {
 			return err
 		}
-
-		if initialTask != "" {
-			state = stateGeneratingPlanName
-		} else if len(plans) > 0 {
-			state = stateSelectPlan
-		} else {
-			state = stateAskTask
-		}
-	} else {
-		// Plan name provided, we can attempt to load it immediately
-		state = statePlanning // startPlanning will change this if needed
 	}
+
+	state := determineInitialState(planName, initialTask)
 
 	m := initialModel(ctx, state, cfg, plans, planName, initialTask, workspace, version, client)
 
