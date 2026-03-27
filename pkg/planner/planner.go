@@ -24,6 +24,11 @@ type Config struct {
 	Workspace      string // Directory to hold workspaces
 	MaxConcurrency int
 	MaxRetries     int
+	Atlassian      struct {
+		BaseURL string
+		User    string
+		APIKey  string
+	}
 }
 
 // ListPlans returns a list of available plan files in the PlansDir, without the .json extension.
