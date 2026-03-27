@@ -19,9 +19,9 @@ An example `config.yml` looks like:
 ```yaml
 plans_dir: "~/.planner/plans"
 llm:
-  provider: "gemini" # Can be "gemini", "copilot", or "claude"
+  provider: "gemini" # Can be "gemini", "copilot", "claude", or "opencode"
   model: "gemini-3.1-flash-lite-preview"
-  api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY or ANTHROPIC_API_KEY env var (ignored for copilot)
+  api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY or ANTHROPIC_API_KEY env var (ignored for copilot and opencode)
 ```
 
 ### LLM Providers
@@ -38,6 +38,11 @@ llm:
 - Requires the `copilot` command line interface to be installed and authenticated (`copilot auth`).
 - Does not require an `api_key` in the planner config since it relies on the CLI's existing session.
 - The `model` configuration is optional. If left blank, it uses the CLI's default model. You can specify a model like `gpt-4o` if the CLI supports it via the `--model` flag.
+
+**Opencode (`provider: "opencode"`)**
+- Requires the `opencode` command line interface to be installed.
+- Does not require an `api_key` in the planner config since it relies on the CLI's configuration.
+- The `model` configuration is optional. If left blank, it uses the CLI's default model. When specified, the model must be in the `provider/model` format (e.g. `google/gemini-3.1-pro-preview`).
 
 ## CLI Behavior
 

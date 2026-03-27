@@ -28,7 +28,7 @@ Example `~/.planner/config.yml` for opencode:
 plans_dir: "~/.planner/plans"
 llm:
   provider: "opencode"
-  model: "gemini-3.1-pro-preview"
+  model: "google/gemini-3.1-pro-preview"
 ```
 
 See [agent_docs/config.md](agent_docs/config.md) for full configuration options.
