@@ -79,3 +79,8 @@ planner/
 - **Yielding to User:** If a task is unclear, the LLM returns `AskUser`. The planner halts execution for that branch, bubbles a prompt up to the UI (via Go channels), waits for user input, appends the answer to the task's context, and retries.
 - **Interface:** The logic is encapsulated in `pkg/planner`, driven by a rich interactive Bubble Tea interface (`plan-tui`).
 - **Persistence:** The entire task tree is saved as a structured JSON file after every state mutation, allowing planning sessions to be resumed seamlessly.
+- **Atlassian Integration:** If configured, the planner automatically fetches content from Jira or Confluence URLs found in tasks or details, providing the LLM with direct access to your issue tracking and documentation. See [`config.md`](config.md) for setup.
+  Example usage:
+  ```bash
+  ./bin/plan-tui "Implement task from https://your-atlassian-instance.atlassian.net/browse/PROJ-123"
+  ```

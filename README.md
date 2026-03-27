@@ -31,4 +31,19 @@ llm:
   model: "google/gemini-3.1-pro-preview"
 ```
 
+### Atlassian Integration
+If configured, the planner automatically fetches content from Jira or Confluence URLs found in tasks or details.
+
+```yaml
+atlassian:
+  base_url: "https://your-atlassian-instance.atlassian.net"
+  user: "your-email@example.com"
+  api_key: "YOUR_API_TOKEN_HERE"
+```
+
+Example usage:
+```bash
+./bin/plan-tui "Implement task from https://your-atlassian-instance.atlassian.net/browse/PROJ-123"
+```
+
 See [agent_docs/config.md](agent_docs/config.md) for full configuration options.

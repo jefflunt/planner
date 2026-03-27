@@ -22,6 +22,10 @@ llm:
   provider: "gemini" # Can be "gemini", "copilot", "claude", or "opencode"
   model: "gemini-3.1-flash-lite-preview"
   api_key: "YOUR_API_KEY_HERE" # Optional: Can also be passed via GEMINI_API_KEY or ANTHROPIC_API_KEY env var (ignored for copilot and opencode)
+atlassian:
+  base_url: "https://your-atlassian-instance.atlassian.net"
+  user: "your-email@example.com"
+  api_key: "YOUR_API_TOKEN_HERE" # Optional: Can also be passed via PLANNER_ATLASSIAN_API_KEY env var
 ```
 
 ### LLM Providers
@@ -43,6 +47,11 @@ llm:
 - Requires the `opencode` command line interface to be installed.
 - Does not require an `api_key` in the planner config since it relies on the CLI's configuration.
 - The `model` configuration is optional. If left blank, it uses the CLI's default model. When specified, the model must be in the `provider/model` format (e.g. `google/gemini-3.1-pro-preview`).
+
+**Atlassian Integration**
+- Optional configuration to automatically fetch content from Jira or Confluence links.
+- Requires `base_url`, `user` (email), and `api_key` (Atlassian API token).
+- These can be provided in `config.yml` or via environment variables: `PLANNER_ATLASSIAN_BASE_URL`, `PLANNER_ATLASSIAN_API_USER`, and `PLANNER_ATLASSIAN_API_KEY`.
 
 ## CLI Behavior
 

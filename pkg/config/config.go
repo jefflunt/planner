@@ -12,10 +12,15 @@ import (
 type Config struct {
 	PlansDir string `yaml:"plans_dir"`
 	LLM      struct {
-		Provider string `yaml:"provider"` // e.g., "gemini", "copilot", or "claude"
-		Model    string `yaml:"model"`    // e.g., "gemini-3.1-flash-lite-preview", "gpt-4o", or "claude-3-5-sonnet-latest"
-		APIKey   string `yaml:"api_key"`  // Required for gemini and claude; ignored by copilot
+		Provider string `yaml:"provider"`
+		Model    string `yaml:"model"`
+		APIKey   string `yaml:"api_key"`
 	} `yaml:"llm"`
+	Atlassian struct {
+		BaseURL string `yaml:"base_url"`
+		User    string `yaml:"user"`
+		APIKey  string `yaml:"api_key"`
+	} `yaml:"atlassian"`
 	MaxConcurrency int `yaml:"max_concurrency"`
 	MaxRetries     int `yaml:"max_retries"`
 }
@@ -61,6 +66,17 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	cfg.PlansDir = expandTilde(cfg.PlansDir)
+
+	// Load Atlassian config from environment variables if not set in config file
+	if cfg.Atlassian.BaseURL == "" {
+		cfg.Atlassian.BaseURL = os.Getenv("PLANNER_ATLASSIAN_BASE_URL")
+	}
+	if cfg.Atlassian.User == "" {
+		cfg.Atlassian.User = os.Getenv("PLANNER_ATLASSIAN_API_USER")
+	}
+	if cfg.Atlassian.APIKey == "" {
+		cfg.Atlassian.APIKey = os.Getenv("PLANNER_ATLASSIAN_API_KEY")
+	}
 
 	return &cfg, nil
 }

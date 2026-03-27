@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
+	"planner/pkg/atlassian"
 	"planner/pkg/logger"
 )
 
@@ -473,6 +474,28 @@ func (p *Planner) Plan(ctx context.Context, node *Node) error {
 	children := node.Children
 	isRoot := p.Root != nil && node.ID == p.Root.ID
 	p.mu.RUnlock()
+
+	// 1. Fetch Atlassian Content if URLs present
+	if p.Config.Atlassian.BaseURL != "" && p.Config.Atlassian.APIKey != "" {
+		client := atlassian.NewClient(p.Config.Atlassian.BaseURL, p.Config.Atlassian.User, p.Config.Atlassian.APIKey)
+
+		textToScan := node.Task + "\n" + node.Details
+
+		// Simple URL detection
+		lines := strings.Split(textToScan, " ")
+		for _, token := range lines {
+			if strings.Contains(token, p.Config.Atlassian.BaseURL) {
+				// Clean URL (remove trailing punctuation)
+				url := strings.TrimRight(token, ".,!?)")
+				content, err := client.Fetch(url)
+				if err == nil {
+					p.mu.Lock()
+					node.Details = fmt.Sprintf("%s\n\n[Atlassian Context from %s]:\n%s", node.Details, url, content)
+					p.mu.Unlock()
+				}
+			}
+		}
+	}
 
 	// If already fully analyzed, just skip or recurse
 	if status == StatusActionable {
