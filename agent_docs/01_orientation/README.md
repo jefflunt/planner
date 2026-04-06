@@ -12,7 +12,7 @@ You can build the `plan-tui` binary using the included build script:
 ```bash
 ./script/build
 ```
-The executable will be generated in `bin/plan-tui`. See [`building.md`](building.md) for more details.
+The executable will be generated in `bin/plan-tui`. See [`building.md`](../02_patterns/building.md) for more details.
 
 
 ---
@@ -40,12 +40,12 @@ This folder follows **Progressive Disclosure** principles — show what exists a
 | File | What it covers | Read when… |
 |------|---------------|------------|
 | **This file** | Repo overview, file map, key facts | Always — start here |
-| [`architecture.md`](architecture.md) | The generic task tree, TUI vs CLI separation, and state management | Changing core logic, adding new UI components |
-| [`planning_workflow.md`](planning_workflow.md) | Step-by-step walkthrough of how tasks are analyzed, decomposed, and how the planner yields for user input | Changing the LLM interaction loop or Actionable heuristic |
-| [`execution_workflow.md`](execution_workflow.md) | How the TUI delegates task tree execution to native external agents | Making changes to execution behavior or native process handling |
-| [`building.md`](building.md) | Build process and commands | Building the binaries |
-| [`config.md`](config.md) | Configuration options (state files, workspaces) | Changing CLI flags or configuration options |
-| [`plans/`](plans/) | Design plans for future or in-progress features | Starting a significant new feature (e.g. real LLM integration) |
+| [`architecture.md`](../02_patterns/architecture.md) | The generic task tree, TUI vs CLI separation, and state management | Changing core logic, adding new UI components |
+| [`planning_workflow.md`](../03_deep_dives/planning_workflow.md) | Step-by-step walkthrough of how tasks are analyzed, decomposed, and how the planner yields for user input | Changing the LLM interaction loop or Actionable heuristic |
+| [`execution_workflow.md`](../03_deep_dives/execution_workflow.md) | How the TUI delegates task tree execution to native external agents | Making changes to execution behavior or native process handling |
+| [`building.md`](../02_patterns/building.md) | Build process and commands | Building the binaries |
+| [`config.md`](../02_patterns/config.md) | Configuration options (state files, workspaces) | Changing CLI flags or configuration options |
+| [`plans/`](../04_plans/) | Design plans for future or in-progress features | Starting a significant new feature (e.g. real LLM integration) |
 
 ---
 
@@ -79,7 +79,7 @@ planner/
 - **Yielding to User:** If a task is unclear, the LLM returns `AskUser`. The planner halts execution for that branch, bubbles a prompt up to the UI (via Go channels), waits for user input, appends the answer to the task's context, and retries.
 - **Interface:** The logic is encapsulated in `pkg/planner`, driven by a rich interactive Bubble Tea interface (`plan-tui`).
 - **Persistence:** The entire task tree is saved as a structured JSON file after every state mutation, allowing planning sessions to be resumed seamlessly.
-- **Atlassian Integration:** If configured, the planner automatically fetches content from Jira or Confluence URLs found in tasks or details, providing the LLM with direct access to your issue tracking and documentation. See [`config.md`](config.md) for setup.
+- **Atlassian Integration:** If configured, the planner automatically fetches content from Jira or Confluence URLs found in tasks or details, providing the LLM with direct access to your issue tracking and documentation. See [`config.md`](../02_patterns/config.md) for setup.
   Example usage:
   ```bash
   ./bin/plan-tui "Implement task from https://your-atlassian-instance.atlassian.net/browse/PROJ-123"
